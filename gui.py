@@ -12,6 +12,7 @@ import customtkinter as ctk
 from generator import ProjectManager
 from keygen import check_wg_available
 from models import Project
+from utils import open_folder
 
 
 class _AddClientDialog(ctk.CTkToplevel):
@@ -286,10 +287,15 @@ class WireGuardGUI(ctk.CTk):
         self._clear()
 
         # Header
-        ctk.CTkLabel(
-            self._container, text=p.name,
-            font=ctk.CTkFont(size=18, weight="bold"),
-        ).pack(pady=(14, 4))
+        hdr = ctk.CTkFrame(self._container, fg_color="transparent")
+        hdr.pack(pady=(14, 4))
+        ctk.CTkLabel(hdr, text=p.name, font=ctk.CTkFont(size=18, weight="bold")
+                     ).pack(side="left")
+        ctk.CTkButton(
+            hdr, text="📁", width=32, height=28,
+            font=ctk.CTkFont(size=13),
+            command=lambda: open_folder(p.dir),
+        ).pack(side="left", padx=(8, 0))
 
         # Info row
         info = ctk.CTkFrame(self._container, fg_color="transparent")
@@ -354,6 +360,11 @@ class WireGuardGUI(ctk.CTk):
                 ctk.CTkLabel(row, text=c.vpn_ip, font=ctk.CTkFont(size=12),
                              text_color="gray50", width=100
                              ).pack(side="left")
+                ctk.CTkButton(
+                    row, text="📁", width=32, height=24,
+                    font=ctk.CTkFont(size=11),
+                    command=lambda name=c.name: open_folder(p.dir / "clients" / name),
+                ).pack(side="right")
                 ctk.CTkButton(
                     row, text="✕", width=32, height=24,
                     fg_color="#b33", hover_color="#922",
