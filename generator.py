@@ -51,6 +51,8 @@ class ProjectManager:
         """Generate server keys, create project dir, write everything."""
         if not name.strip():
             raise ValueError("Project name is required")
+        if (ProjectManager.PROJECTS_DIR / name.strip()).exists():
+            raise ValueError(f"Project '{name.strip()}' already exists")
         keys = generate_keypair()
         project = Project(
             name=name.strip(),
