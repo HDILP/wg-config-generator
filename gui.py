@@ -1,32 +1,73 @@
-"""CustomTkinter GUI for WireGuard Config Generator."""
+"""CustomTkinter GUI — Project Manager for WireGuard."""
 
 from __future__ import annotations
 
 import threading
 from pathlib import Path
-from tkinter import filedialog, messagebox
-from typing import Dict, List, Optional
+from tkinter import messagebox
+from typing import Optional
 
 import customtkinter as ctk
 
-from generator import ConfigGenerator, KeyGenError
+from generator import ProjectManager
 from keygen import check_wg_available
-from models import GenerationConfig
-from utils import ensure_dir
+from models import Project
+
+
+class _AddClientDialog(ctk.CTkToplevel):
+    """Small popup for client name + optional IP."""
+
+    def __init__(self, parent: ctk.CTkBaseClass, suggested_ip: str) -> None:
+        super().__init__(parent)
+        self.title("New Client")
+        self.geometry("380x200")
+        self.resizable(False, False)
+
+        ctk.CTkLabel(self, text="Client Name", font=ctk.CTkFont(size=13),
+                     anchor="w").pack(fill="x", padx=20, pady=(16, 4))
+        self._name = ctk.CTkEntry(self, font=ctk.CTkFont(size=13))
+        self._name.pack(fill="x", padx=20, pady=(0, 8))
+
+        ctk.CTkLabel(self, text="VPN IP (leave blank for auto)",
+                     font=ctk.CTkFont(size=13), anchor="w"
+                     ).pack(fill="x", padx=20, pady=(4, 4))
+        self._ip = ctk.CTkEntry(self, font=ctk.CTkFont(size=13))
+        self._ip.insert(0, suggested_ip)
+        self._ip.pack(fill="x", padx=20, pady=(0, 12))
+
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=20)
+        ctk.CTkButton(btn_frame, text="Cancel", command=self.destroy,
+                       font=ctk.CTkFont(size=12), width=80
+                       ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(btn_frame, text="Add", command=self._confirm,
+                       font=ctk.CTkFont(size=12, weight="bold"),
+                       ).pack(side="right")
+
+        self._name.focus_set()
+        self._confirmed = False
+        self.grab_set()
+
+    def _confirm(self) -> None:
+        if not self._name.get().strip():
+            messagebox.showwarning("Validation", "Client name is required.",
+                                   parent=self)
+            return
+        self._confirmed = True
+        self.destroy()
+
+    def result(self) -> tuple[str, str] | None:
+        return (self._name.get().strip(), self._ip.get().strip()) if self._confirmed else None
 
 
 class WireGuardGUI(ctk.CTk):
-    """Main application window."""
+    """Main app — page-based UI for project management."""
 
-    WIDTH = 520
-    HEIGHT = 620
-
-    NEW_SERVER = "New Server"
-    ADD_CLIENT = "Add Client"
+    WIDTH, HEIGHT = 540, 640
 
     def __init__(self) -> None:
         super().__init__()
-        self.title("WireGuard Config Generator")
+        self.title("WireGuard Project Manager")
         self.geometry(f"{self.WIDTH}x{self.HEIGHT}")
         self.resizable(False, False)
         ctk.set_appearance_mode("light")
@@ -35,334 +76,355 @@ class WireGuardGUI(ctk.CTk):
         self._wg_error: Optional[str] = check_wg_available()
         if self._wg_error:
             self._build_error_ui()
-        else:
-            self._build_main_ui()
+            return
 
-    # ── error state ──────────────────────────────────────────────
+        self._container = ctk.CTkFrame(self, corner_radius=12)
+        self._container.pack(expand=True, fill="both", padx=20, pady=20)
+        self._current_project: Optional[Project] = None
+        self._show_home()
+
+    # ═══════════════════════════════════════════════════════════
+    #  page helpers
+    # ═══════════════════════════════════════════════════════════
+
+    def _clear(self) -> None:
+        for w in self._container.winfo_children():
+            w.destroy()
+
+    def _home(self) -> None:
+        self._current_project = None
+        self._show_home()
+
+    # ═══════════════════════════════════════════════════════════
+    #  error
+    # ═══════════════════════════════════════════════════════════
 
     def _build_error_ui(self) -> None:
         frame = ctk.CTkFrame(self, corner_radius=12)
         frame.pack(expand=True, fill="both", padx=30, pady=30)
-
         ctk.CTkLabel(
-            frame,
-            text="⚠️  WireGuard Not Found",
+            frame, text="⚠️  WireGuard Not Found",
             font=ctk.CTkFont(size=18, weight="bold"),
         ).pack(pady=(30, 10))
-
         ctk.CTkLabel(
-            frame,
-            text=self._wg_error or "",
-            wraplength=400,
-            font=ctk.CTkFont(size=13),
-            text_color="gray40",
+            frame, text=self._wg_error or "", wraplength=400,
+            font=ctk.CTkFont(size=13), text_color="gray40",
         ).pack(pady=10)
-
         ctk.CTkLabel(
             frame,
-            text="Please install WireGuard and ensure `wg` is on your PATH,\nthen restart this application.",
-            wraplength=400,
-            font=ctk.CTkFont(size=12),
-            text_color="gray50",
+            text="Install WireGuard and ensure `wg` is on PATH,\nthen restart.",
+            wraplength=400, font=ctk.CTkFont(size=12), text_color="gray50",
         ).pack(pady=(5, 30))
 
-    # ── main form ────────────────────────────────────────────────
+    # ═══════════════════════════════════════════════════════════
+    #  HOME
+    # ═══════════════════════════════════════════════════════════
 
-    def _build_main_ui(self) -> None:
-        main = ctk.CTkFrame(self, corner_radius=12)
-        main.pack(expand=True, fill="both", padx=20, pady=20)
-
-        # Title
+    def _show_home(self) -> None:
+        self._clear()
         ctk.CTkLabel(
-            main,
-            text="WireGuard Config Generator",
-            font=ctk.CTkFont(size=18, weight="bold"),
-        ).pack(pady=(12, 4))
-
+            self._container, text="WireGuard Project Manager",
+            font=ctk.CTkFont(size=20, weight="bold"),
+        ).pack(pady=(30, 8))
         ctk.CTkLabel(
-            main,
-            text="New server or add client to existing deployment",
-            font=ctk.CTkFont(size=12),
-            text_color="gray50",
-        ).pack(pady=(0, 12))
+            self._container, text="管家婆代理商专用",
+            font=ctk.CTkFont(size=13), text_color="gray50",
+        ).pack(pady=(0, 32))
 
-        # Mode selector
-        self._mode_var = ctk.StringVar(value=self.NEW_SERVER)
-        mode_sel = ctk.CTkSegmentedButton(
-            main,
-            values=[self.NEW_SERVER, self.ADD_CLIENT],
-            variable=self._mode_var,
-            command=self._on_mode_change,
-            font=ctk.CTkFont(size=13),
-        )
-        mode_sel.pack(pady=(0, 12), padx=16, fill="x")
+        btn_kw = dict(height=56, corner_radius=10, font=ctk.CTkFont(size=15, weight="bold"))
 
-        # Form fields
-        fields_frame = ctk.CTkFrame(main, fg_color="transparent")
-        fields_frame.pack(fill="x", padx=16)
+        ctk.CTkButton(
+            self._container, text="＋  新建服务器", fg_color="#2b7a4b",
+            hover_color="#1e5f38",
+            command=self._show_new_server, **btn_kw,
+        ).pack(fill="x", padx=40, pady=(0, 12))
 
-        self._entries: dict[str, ctk.CTkEntry] = {}
-        # (key, label, default, tip, modes_shown) — modes_shown: None = always
-        field_defs: list[tuple[str, str, str, str | None, List[str] | None]] = [
-            ("server_public_ip", "Server Public IP", "", "公网 IP 或域名", None),
-            ("listen_port", "Listen Port", "51820", None, [self.NEW_SERVER]),
-            ("server_vpn_ip", "Server VPN IP", "10.66.66.1", None, [self.NEW_SERVER]),
-            ("client_vpn_ip", "Client VPN IP", "10.66.66.2", None, None),
-            ("vpn_subnet", "VPN Subnet", "10.66.66.0/24", None, [self.NEW_SERVER]),
-        ]
-        self._field_widgets: dict[str, list[ctk.CTkBaseClass]] = {}
-        self._field_modes: dict[str, List[str] | None] = {}
+        ctk.CTkButton(
+            self._container, text="📂  打开已有服务器", fg_color="#2a6d9c",
+            hover_color="#1f5275",
+            command=self._show_project_list, **btn_kw,
+        ).pack(fill="x", padx=40, pady=(0, 32))
 
-        row = 0
-        for key, label, default, tip, modes in field_defs:
-            self._field_modes[key] = modes
-            lbl = ctk.CTkLabel(
+    # ═══════════════════════════════════════════════════════════
+    #  NEW SERVER
+    # ═══════════════════════════════════════════════════════════
+
+    def _show_new_server(self) -> None:
+        self._clear()
+        ctk.CTkLabel(
+            self._container, text="新建服务器",
+            font=ctk.CTkFont(size=17, weight="bold"),
+        ).pack(pady=(16, 12))
+
+        fields_frame = ctk.CTkFrame(self._container, fg_color="transparent")
+        fields_frame.pack(fill="x", padx=20)
+
+        entries: dict[str, ctk.CTkEntry] = {}
+        for label, key, default in [
+            ("服务器名称", "name", "管家婆云服务器"),
+            ("Server Public IP", "ip", ""),
+            ("Listen Port", "port", "51820"),
+            ("Server VPN IP", "svpn", "10.66.66.1"),
+            ("VPN Subnet", "subnet", "10.66.66.0/24"),
+        ]:
+            ctk.CTkLabel(
                 fields_frame, text=label, font=ctk.CTkFont(size=13),
                 anchor="w",
-            )
-            lbl.grid(row=row, column=0, sticky="w", pady=(8, 2))
-            ent = ctk.CTkEntry(
-                fields_frame,
-                placeholder_text=tip or "",
-                font=ctk.CTkFont(size=13),
-            )
-            ent.insert(0, default)
-            ent.grid(row=row + 1, column=0, sticky="ew", pady=(0, 6))
-            self._entries[key] = ent
-            self._field_widgets[key] = [lbl, ent]
-            row += 2
+            ).pack(fill="x", pady=(10, 2))
+            e = ctk.CTkEntry(fields_frame, font=ctk.CTkFont(size=13))
+            if default:
+                e.insert(0, default)
+            e.pack(fill="x", pady=(0, 2))
+            entries[key] = e
 
-        fields_frame.columnconfigure(0, weight=1)
+        self._new_srv_entries = entries
 
-        # Server config folder (Add Client only)
-        self._server_conf_frame = ctk.CTkFrame(fields_frame, fg_color="transparent")
-        lbl = ctk.CTkLabel(
-            self._server_conf_frame, text="Server Config Folder",
-            font=ctk.CTkFont(size=13), anchor="w",
-        )
-        lbl.pack(fill="x", pady=(8, 2))
-        efr = ctk.CTkFrame(self._server_conf_frame, fg_color="transparent")
-        efr.pack(fill="x", pady=(0, 6))
-        efr.columnconfigure(0, weight=1)
-        self._server_conf_entry = ctk.CTkEntry(
-            efr, placeholder_text="Folder containing server.conf",
-            font=ctk.CTkFont(size=13),
-        )
-        self._server_conf_entry.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        btn_frame = ctk.CTkFrame(self._container, fg_color="transparent")
+        btn_frame.pack(pady=(20, 8))
         ctk.CTkButton(
-            efr, text="Browse", width=80,
-            command=self._browse_server_conf,
-            font=ctk.CTkFont(size=12),
-        ).grid(row=0, column=1)
-
-        # Output folder row
-        ctk.CTkLabel(
-            fields_frame, text="Output Folder", font=ctk.CTkFont(size=13),
-            anchor="w",
-        ).grid(row=row, column=0, sticky="w", pady=(8, 2))
-
-        folder_frame = ctk.CTkFrame(fields_frame, fg_color="transparent")
-        folder_frame.grid(row=row + 1, column=0, sticky="ew", pady=(0, 6))
-        folder_frame.columnconfigure(0, weight=1)
-
-        self._output_entry = ctk.CTkEntry(
-            folder_frame, placeholder_text="output/",
-            font=ctk.CTkFont(size=13),
+            btn_frame, text="← 返回", width=100,
+            command=self._home, font=ctk.CTkFont(size=13),
+        ).pack(side="left", padx=(0, 12))
+        self._new_srv_btn = ctk.CTkButton(
+            btn_frame, text="Create", width=120,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            command=self._do_create_project,
         )
-        self._output_entry.insert(0, "output")
-        self._output_entry.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self._new_srv_btn.pack(side="right")
 
-        ctk.CTkButton(
-            folder_frame, text="Browse", width=80,
-            command=self._browse_output_folder,
-            font=ctk.CTkFont(size=12),
-        ).grid(row=0, column=1)
-
-        # Options
-        opts_frame = ctk.CTkFrame(main, fg_color="transparent")
-        opts_frame.pack(fill="x", padx=16, pady=(8, 4))
-
-        self._open_folder_var = ctk.BooleanVar(value=True)
-        ctk.CTkCheckBox(
-            opts_frame, text="Open output folder after generation",
-            variable=self._open_folder_var,
-            font=ctk.CTkFont(size=12),
-        ).pack(anchor="w")
-
-        ctk.CTkLabel(
-            opts_frame,
-            text="Keys are auto-generated — no manual editing needed.",
-            font=ctk.CTkFont(size=11),
-            text_color="gray50",
-        ).pack(anchor="w", pady=(2, 0))
-
-        # Generate button
-        self._gen_btn = ctk.CTkButton(
-            main,
-            text="Generate",
-            font=ctk.CTkFont(size=15, weight="bold"),
-            height=42,
-            corner_radius=8,
-            command=self._on_generate,
-        )
-        self._gen_btn.pack(pady=(12, 16), padx=40, fill="x")
-
-        # Status bar
-        self._status_var = ctk.StringVar(value="Ready")
-        self._status_label = ctk.CTkLabel(
-            main,
-            textvariable=self._status_var,
-            font=ctk.CTkFont(size=11),
-            text_color="gray40",
-        )
-        self._status_label.pack(pady=(0, 8))
-
-        # Start in New Server mode
-        self._on_mode_change(self.NEW_SERVER)
-
-    # ── mode switching ───────────────────────────────────────────
-
-    def _on_mode_change(self, mode: str) -> None:
-        """Show/hide fields based on mode."""
-        is_new = mode == self.NEW_SERVER
-        for key, modes in self._field_modes.items():
-            visible = modes is None or mode in modes
-            for w in self._field_widgets[key]:
-                if visible:
-                    w.grid()  # reapply remembered grid config
-                else:
-                    w.grid_remove()
-        # Server config folder: shown only in Add Client
-        if is_new:
-            self._server_conf_frame.grid_remove()
-        else:
-            self._server_conf_frame.grid(row=0, column=0, sticky="ew")
-            # Auto-fill output from server folder if entered
-            self._sync_output_from_server_conf()
-
-    def _sync_output_from_server_conf(self) -> None:
-        path = self._server_conf_entry.get().strip()
-        if path and not self._output_entry.get().strip():
-            self._output_entry.delete(0, "end")
-            self._output_entry.insert(0, path)
-
-    # ── browse handlers ──────────────────────────────────────────
-
-    def _browse_server_conf(self) -> None:
-        path = filedialog.askdirectory(title="Select Server Config Folder")
-        if path:
-            self._server_conf_entry.delete(0, "end")
-            self._server_conf_entry.insert(0, path)
-            if not self._output_entry.get().strip():
-                self._output_entry.delete(0, "end")
-                self._output_entry.insert(0, path)
-
-    def _browse_output_folder(self) -> None:
-        path = filedialog.askdirectory(title="Select Output Folder")
-        if path:
-            self._output_entry.delete(0, "end")
-            self._output_entry.insert(0, path)
-
-    def _get_config(self) -> GenerationConfig:
-        val = self._entries
-        return GenerationConfig(
-            server_public_ip=val["server_public_ip"].get().strip(),
-            listen_port=int(val["listen_port"].get().strip() or "51820"),
-            server_vpn_ip=val["server_vpn_ip"].get().strip() or "10.66.66.1",
-            client_vpn_ip=val["client_vpn_ip"].get().strip() or "10.66.66.2",
-            vpn_subnet=val["vpn_subnet"].get().strip() or "10.66.66.0/24",
-            output_dir=self._output_entry.get().strip() or "output",
-        )
-
-    # ── generation ───────────────────────────────────────────────
-
-    def _on_generate(self) -> None:
-        if self._wg_error:
-            messagebox.showerror("Error", self._wg_error)
+    def _do_create_project(self) -> None:
+        e = self._new_srv_entries
+        name = e["name"].get().strip()
+        ip = e["ip"].get().strip()
+        if not name or not ip:
+            messagebox.showwarning("Missing Fields", "Name and Public IP required.")
+            return
+        try:
+            port = int(e["port"].get().strip() or "51820")
+        except ValueError:
+            messagebox.showwarning("Invalid Port", "Listen Port must be a number.")
             return
 
-        mode = self._mode_var.get()
+        self._new_srv_btn.configure(state="disabled", text="Creating…")
+        threading.Thread(
+            target=self._create_worker,
+            args=(name, ip, port, e["svpn"].get().strip(), e["subnet"].get().strip()),
+            daemon=True,
+        ).start()
 
-        if mode == self.NEW_SERVER:
-            ip = self._entries["server_public_ip"].get().strip()
-            if not ip:
-                messagebox.showwarning("Missing Field", "Server Public IP is required.")
-                return
-        else:
-            svr = self._server_conf_entry.get().strip()
-            if not svr or not (Path(svr) / "server.conf").exists():
-                messagebox.showwarning(
-                    "Missing Field",
-                    "Select a folder containing server.conf.",
-                )
-                return
-
-        self._gen_btn.configure(state="disabled", text="Generating…")
-        self._status_var.set("Working…")
-        self._status_label.configure(text_color="gray40")
-        threading.Thread(target=self._generate_worker, daemon=True).start()
-
-    def _generate_worker(self) -> None:
+    def _create_worker(self, name: str, ip: str, port: int,
+                       svpn: str, subnet: str) -> None:
         try:
-            mode = self._mode_var.get()
-            if mode == self.NEW_SERVER:
-                result = self._do_new_server()
-            else:
-                result = self._do_add_client()
-            self.after(0, self._on_success, result)
-        except KeyGenError as exc:
-            self.after(0, self._on_error, str(exc))
+            project = ProjectManager.create(name, ip, port, svpn, subnet)
+            self.after(0, self._open_detail, project)
         except Exception as exc:  # noqa: BLE001
-            self.after(0, self._on_error, f"Unexpected error: {exc}")
+            self.after(0, lambda: (
+                self._new_srv_btn.configure(state="normal", text="Create"),
+                messagebox.showerror("Error", str(exc)),
+            ))
 
-    def _do_new_server(self) -> Dict[str, str]:
-        cfg = self._get_config()
-        gen = ConfigGenerator(cfg)
-        if self._open_folder_var.get():
-            return gen.generate_with_open()
-        return gen.generate()
+    # ═══════════════════════════════════════════════════════════
+    #  PROJECT LIST
+    # ═══════════════════════════════════════════════════════════
 
-    def _do_add_client(self) -> Dict[str, str]:
-        server_dir = self._server_conf_entry.get().strip()
-        pub_ip = self._entries["server_public_ip"].get().strip()
-        client_ip = self._entries["client_vpn_ip"].get().strip()
-        output = self._output_entry.get().strip() or server_dir
-        subnet = self._entries["vpn_subnet"].get().strip() or "10.66.66.0/24"
+    def _show_project_list(self) -> None:
+        self._clear()
+        ctk.CTkLabel(
+            self._container, text="已有服务器项目",
+            font=ctk.CTkFont(size=17, weight="bold"),
+        ).pack(pady=(16, 12))
 
-        cfg = GenerationConfig(
-            server_public_ip=pub_ip,
-            output_dir=output,
-            vpn_subnet=subnet,
+        names = ProjectManager.list_projects()
+        if not names:
+            ctk.CTkLabel(
+                self._container,
+                text="还没有项目，先新建一个吧 🌚",
+                font=ctk.CTkFont(size=13),
+                text_color="gray50",
+            ).pack(pady=30)
+        else:
+            scroll = ctk.CTkScrollableFrame(
+                self._container, corner_radius=8,
+                height=340,
+            )
+            scroll.pack(fill="both", expand=True, padx=20)
+            for n in names:
+                row = ctk.CTkFrame(scroll, fg_color="transparent")
+                row.pack(fill="x", pady=4)
+                ctk.CTkLabel(row, text=n, font=ctk.CTkFont(size=14)
+                             ).pack(side="left")
+                ctk.CTkButton(
+                    row, text="Open", width=70,
+                    font=ctk.CTkFont(size=12),
+                    command=lambda name=n: self._open_detail(
+                        ProjectManager.load(name)),
+                ).pack(side="right")
+
+        ctk.CTkButton(
+            self._container, text="← 返回", width=100,
+            command=self._home, font=ctk.CTkFont(size=13),
+        ).pack(pady=(16, 8))
+
+    # ═══════════════════════════════════════════════════════════
+    #  PROJECT DETAIL
+    # ═══════════════════════════════════════════════════════════
+
+    def _open_detail(self, project: Project) -> None:
+        self._current_project = project
+        self._show_project_detail()
+
+    def _show_project_detail(self) -> None:
+        p = self._current_project
+        if p is None:
+            self._home()
+            return
+
+        self._clear()
+
+        # Header
+        ctk.CTkLabel(
+            self._container, text=p.name,
+            font=ctk.CTkFont(size=18, weight="bold"),
+        ).pack(pady=(14, 4))
+
+        # Info row
+        info = ctk.CTkFrame(self._container, fg_color="transparent")
+        info.pack(fill="x", padx=20, pady=(0, 10))
+        for label, val in [
+            ("公网", p.server_public_ip),
+            ("VPN", p.server_vpn_ip),
+            ("端口", str(p.listen_port)),
+        ]:
+            f = ctk.CTkFrame(info, fg_color="transparent")
+            f.pack(side="left", fill="x", expand=True)
+            ctk.CTkLabel(f, text=label, font=ctk.CTkFont(size=11),
+                         text_color="gray50").pack()
+            ctk.CTkLabel(f, text=val, font=ctk.CTkFont(size=14, weight="bold")
+                         ).pack()
+
+        # Separator
+        ctk.CTkLabel(self._container, text="─" * 40,
+                     text_color="gray70", font=ctk.CTkFont(size=12)
+                     ).pack(pady=(4, 8))
+
+        ctk.CTkLabel(
+            self._container, text=f"客户列表 ({len(p.clients)})",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        ).pack(anchor="w", padx=20)
+
+        # Client list
+        scroll = ctk.CTkScrollableFrame(
+            self._container, corner_radius=8, height=200,
         )
-        gen = ConfigGenerator(cfg)
-        result = gen.add_client(
-            server_conf_dir=server_dir,
-            server_public_ip=pub_ip,
-            client_vpn_ip=client_ip or None,
-            vpn_subnet=subnet,
+        scroll.pack(fill="x", padx=20, pady=(6, 12))
+        if not p.clients:
+            ctk.CTkLabel(scroll, text="暂无客户", text_color="gray50",
+                         font=ctk.CTkFont(size=12)).pack(pady=16)
+        else:
+            for i, c in enumerate(p.clients, 1):
+                row = ctk.CTkFrame(scroll, fg_color="transparent")
+                row.pack(fill="x", pady=3)
+                ctk.CTkLabel(row, text=f"{i}.", font=ctk.CTkFont(size=12),
+                             width=24).pack(side="left")
+                ctk.CTkLabel(row, text=c.name, font=ctk.CTkFont(size=13),
+                             anchor="w").pack(side="left", fill="x", expand=True)
+                ctk.CTkLabel(row, text=c.vpn_ip, font=ctk.CTkFont(size=12),
+                             text_color="gray50", width=100
+                             ).pack(side="left")
+                ctk.CTkButton(
+                    row, text="✕", width=32, height=24,
+                    fg_color="#b33", hover_color="#922",
+                    font=ctk.CTkFont(size=11),
+                    command=lambda name=c.name: self._do_remove_client(name),
+                ).pack(side="right", padx=(6, 0))
+
+        # Action buttons
+        act = ctk.CTkFrame(self._container, fg_color="transparent")
+        act.pack(fill="x", padx=20)
+
+        ctk.CTkButton(
+            act, text="← 返回", width=90,
+            command=self._home, font=ctk.CTkFont(size=12),
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            act, text="新增客户",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            fg_color="#2b7a4b", hover_color="#1e5f38",
+            command=self._do_add_client,
+        ).pack(side="right", padx=(6, 0))
+
+        # Status
+        self._detail_status = ctk.CTkLabel(
+            self._container, text="", font=ctk.CTkFont(size=11),
         )
-        if self._open_folder_var.get():
-            open_folder(ensure_dir(result["output_dir"]))
-        return result
+        self._detail_status.pack(pady=(12, 4))
 
-    # ── result display ───────────────────────────────────────────
+    # ── project detail actions ────────────────────────────────
 
-    def _on_success(self, result: Dict[str, str]) -> None:
-        self._gen_btn.configure(state="normal", text="Generate")
-        mode = self._mode_var.get()
-        self._status_var.set("Done ✓")
-        self._status_label.configure(text_color="green")
-        msg = (
-            f"Output: {result['output_dir']}\n\n"
-            f"Server PublicKey:\n{result['server_pubkey']}\n\n"
-            f"Client PublicKey:\n{result['client_pubkey']}"
-        )
-        if mode == self.ADD_CLIENT:
-            msg = f"Client appended to existing server.conf\n\n" + msg
-        messagebox.showinfo("Success", msg)
+    def _do_add_client(self) -> None:
+        p = self._current_project
+        if p is None:
+            return
 
-    def _on_error(self, msg: str) -> None:
-        self._gen_btn.configure(state="normal", text="Generate")
-        self._status_var.set("Error — see details")
-        self._status_label.configure(text_color="red")
-        messagebox.showerror("Generation Failed", msg)
+        base = ".".join(p.server_vpn_ip.split(".")[:3])
+        used = {c.vpn_ip for c in p.clients} | {p.server_vpn_ip}
+        suggest = "10.66.66.2"
+        for i in range(2, 255):
+            ip = f"{base}.{i}"
+            if ip not in used:
+                suggest = ip
+                break
+
+        dlg = _AddClientDialog(self, suggest)
+        self.wait_window(dlg)
+        res = dlg.result()
+        if res is None:
+            return
+        name, ip = res
+
+        self._set_status("Adding client…")
+        threading.Thread(target=self._add_client_worker,
+                         args=(name, ip or None), daemon=True).start()
+
+    def _add_client_worker(self, name: str, ip: Optional[str]) -> None:
+        p = self._current_project
+        if p is None:
+            return
+        try:
+            ProjectManager.add_client(p, name, ip)
+            self.after(0, self._show_project_detail)
+            self.after(0, lambda: self._set_status(f"✓ {name} added"))
+        except Exception as exc:  # noqa: BLE001
+            self.after(0, lambda: (
+                self._set_status(f"✗ {exc}"),
+                messagebox.showerror("Error", str(exc)),
+            ))
+
+    def _do_remove_client(self, name: str) -> None:
+        p = self._current_project
+        if p is None:
+            return
+        if not messagebox.askyesno("Confirm", f"Remove client '{name}'?"):
+            return
+        self._set_status(f"Removing {name}…")
+        threading.Thread(target=self._remove_client_worker,
+                         args=(name,), daemon=True).start()
+
+    def _remove_client_worker(self, name: str) -> None:
+        p = self._current_project
+        if p is None:
+            return
+        try:
+            ProjectManager.remove_client(p, name)
+            self.after(0, self._show_project_detail)
+            self.after(0, lambda: self._set_status(f"✓ {name} removed"))
+        except Exception as exc:  # noqa: BLE001
+            self.after(0, lambda: (
+                self._set_status(f"✗ {exc}"),
+                messagebox.showerror("Error", str(exc)),
+            ))
+
+    def _set_status(self, text: str) -> None:
+        if hasattr(self, "_detail_status"):
+            self._detail_status.configure(text=text)

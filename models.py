@@ -1,56 +1,95 @@
-"""Data models for WireGuard configuration."""
+"""Data models for WireGuard Project Manager."""
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
-from typing import List
+from pathlib import Path
+from typing import Dict, List
 
 
 @dataclass
 class KeyPair:
     """A WireGuard key pair (private + public)."""
-
     private: str = ""
     public: str = ""
 
 
 @dataclass
-class PeerConfig:
-    """A single [Peer] section attached to a server."""
+class ClientEntry:
+    """One client within a project."""
 
-    public_key: str
-    allowed_ips: str  # e.g. "10.66.66.2/32"
-
-
-@dataclass
-class ServerConfig:
-    """Server-side WireGuard config."""
-
-    private_key: str
-    address: str  # e.g. "10.66.66.1/24"
-    listen_port: int = 51820
-    peers: List[PeerConfig] = field(default_factory=list)
+    name: str
+    vpn_ip: str
+    private_key: str = ""
+    public_key: str = ""
 
 
 @dataclass
-class ClientConfig:
-    """Client-side WireGuard config (single peer)."""
+class Project:
+    """A complete WireGuard server project — single source of truth."""
 
-    private_key: str
-    address: str  # e.g. "10.66.66.2/24"
-    server_public_key: str
-    endpoint: str  # e.g. "1.2.3.4:51820"
-    allowed_ips: str = "10.66.66.0/24"
-    persistent_keepalive: int = 25
-
-
-@dataclass
-class GenerationConfig:
-    """User-facing settings for one generation run."""
-
+    name: str
     server_public_ip: str
+    server_private_key: str = ""
+    server_public_key: str = ""
     listen_port: int = 51820
     server_vpn_ip: str = "10.66.66.1"
-    client_vpn_ip: str = "10.66.66.2"
     vpn_subnet: str = "10.66.66.0/24"
-    output_dir: str = "output"
+    clients: List[ClientEntry] = field(default_factory=list)
+
+    # ── disk layout ──────────────────────────────────────────
+
+    @property
+    def dir(self) -> Path:
+        return Path("projects") / self.name
+
+    @property
+    def clients_dir(self) -> Path:
+        return self.dir / "clients"
+
+    # ── serialization ────────────────────────────────────────
+
+    def to_dict(self) -> Dict:
+        return {
+            "name": self.name,
+            "server": {
+                "public_ip": self.server_public_ip,
+                "private_key": self.server_private_key,
+                "public_key": self.server_public_key,
+                "vpn_ip": self.server_vpn_ip,
+                "listen_port": self.listen_port,
+            },
+            "vpn_subnet": self.vpn_subnet,
+            "clients": [
+                {
+                    "name": c.name,
+                    "vpn_ip": c.vpn_ip,
+                    "private_key": c.private_key,
+                    "public_key": c.public_key,
+                }
+                for c in self.clients
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> Project:
+        srv = data["server"]
+        return cls(
+            name=data["name"],
+            server_public_ip=srv["public_ip"],
+            server_private_key=srv["private_key"],
+            server_public_key=srv["public_key"],
+            listen_port=srv.get("listen_port", 51820),
+            server_vpn_ip=srv.get("vpn_ip", "10.66.66.1"),
+            vpn_subnet=data.get("vpn_subnet", "10.66.66.0/24"),
+            clients=[ClientEntry(**c) for c in data.get("clients", [])],
+        )
+
+    @classmethod
+    def load(cls, path: Path) -> Project:
+        return cls.from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+    def save_json(self) -> None:
+        from utils import write_json
+        write_json(self.dir / "project.json", self.to_dict())

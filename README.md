@@ -1,12 +1,6 @@
-# WireGuard Config Generator
+# WireGuard Project Manager
 
-一键生成 WireGuard 配置。支持**新建服务器**和**为已有服务器新增客户端**两种模式。
-
-## Requirements
-
-- Python 3.10+
-- [WireGuard](https://www.wireguard.com/install/)（`wg` 需在 PATH 或默认安装路径）
-- `pip install -r requirements.txt`
+管家婆代理商专用 — 多服务器项目管理工具。
 
 ## Usage
 
@@ -14,56 +8,38 @@
 python main.py
 ```
 
-### New Server 模式
-1. 填写 Server Public IP
-2. 点击 Generate
-3. 所有配置自动写入 output/ 目录
+### Home
 
-### Add Client 模式
-1. 切换到 "Add Client"
-2. 选择已有 server.conf 所在目录
-3. Client VPN IP 自动检测下一个可用地址
-4. 点击 Generate — 自动追加 [Peer] 并生成新的 client_xxx.conf
+- **新建服务器** — 创建新 WireGuard 项目（生成 server keypair + 首个 client）
+- **打开已有服务器** — 选择已有项目，管理客户
 
-## Output
+### Project Detail
+
+每个项目独立管理：
 
 ```
-output/
-├── server.conf           # 服务端配置
-├── client.conf           # 首个客户端
-├── client_002.conf       # 追加的客户端
-├── client_002_public.txt
-├── README.txt
+projects/<服务器名称>/
+├── project.json      # 唯一数据源
+├── server.conf       # 自动生成
 ├── server_public.txt
-└── keys.json             # 服务器 + 所有客户端密钥（JSON）
+├── README.txt
+└── clients/
+    ├── 深圳华润万家/
+    │   └── client.conf   # 可直接发给客户导入
+    └── 东莞XX商场/
+        └── client.conf
 ```
 
-## keys.json 格式
+- 新增客户 → 自动分配 IP，生成密钥，追加 [Peer]
+- 删除客户 → 移除 [Peer]，清理文件
+- `project.json` 是唯一数据源，所有 `.conf` 均由程序重新生成
 
-```json
-{
-  "server": { "private": "...", "public": "..." },
-  "peers": [
-    { "name": "client_001", "private": "...", "public": "...", "ip": "10.66.66.2" },
-    { "name": "client_002", "private": "...", "public": "...", "ip": "10.66.66.3" }
-  ]
-}
-```
+## Requirements
 
-## Architecture
-
-```text
-Server
-├── client_001  (client.conf)
-├── client_002  (client_002.conf)
-└── client_003  (client_003.conf)
-```
+- Python 3.10+
+- [WireGuard](https://www.wireguard.com/install/)（`wg` 需在 PATH 或默认安装路径）
+- `pip install -r requirements.txt`
 
 ## CI
 
-push 后 GitHub Actions 自动用 Nuitka 编译 Windows 单文件 exe，artifact 可下载。
-
-## 扩展方向（需时再说）
-- 客户端二维码
-- 一键吊销 [Peer]
-- 导入已有 server.conf 补全 keys.json
+push 后 GitHub Actions 自动用 Nuitka 编译 Windows 单文件 exe。
