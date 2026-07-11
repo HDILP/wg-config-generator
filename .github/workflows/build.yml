@@ -15,6 +15,7 @@ jobs:
         run: >
           python -m nuitka --onefile --windows-console-mode=disable
           --enable-plugin=tk-inter --include-package=customtkinter
+          --include-package-data=customtkinter
           --assume-yes-for-downloads
           --output-dir=dist --output-filename=WireGuardConfigGenerator
           main.py
