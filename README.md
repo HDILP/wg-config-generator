@@ -1,11 +1,11 @@
 # WireGuard Config Generator
 
-一键生成 WireGuard 服务端 + 客户端配置。
+一键生成 WireGuard 配置。支持**新建服务器**和**为已有服务器新增客户端**两种模式。
 
 ## Requirements
 
 - Python 3.10+
-- [WireGuard](https://www.wireguard.com/install/) （`wg` 需在 PATH 中）
+- [WireGuard](https://www.wireguard.com/install/)（`wg` 需在 PATH 或默认安装路径）
 - `pip install -r requirements.txt`
 
 ## Usage
@@ -14,41 +14,56 @@
 python main.py
 ```
 
+### New Server 模式
 1. 填写 Server Public IP
 2. 点击 Generate
 3. 所有配置自动写入 output/ 目录
+
+### Add Client 模式
+1. 切换到 "Add Client"
+2. 选择已有 server.conf 所在目录
+3. Client VPN IP 自动检测下一个可用地址
+4. 点击 Generate — 自动追加 [Peer] 并生成新的 client_xxx.conf
 
 ## Output
 
 ```
 output/
-├── server.conf        # 服务端配置（含 [Peer]）
-├── client.conf        # 客户端配置
-├── README.txt         # 部署说明
-├── server_public.txt  # 服务端公钥（文本）
-├── client_public.txt  # 客户端公钥（文本）
-└── keys.json          # 完整密钥备份
+├── server.conf           # 服务端配置
+├── client.conf           # 首个客户端
+├── client_002.conf       # 追加的客户端
+├── client_002_public.txt
+├── README.txt
+├── server_public.txt
+└── keys.json             # 服务器 + 所有客户端密钥（JSON）
+```
+
+## keys.json 格式
+
+```json
+{
+  "server": { "private": "...", "public": "..." },
+  "peers": [
+    { "name": "client_001", "private": "...", "public": "...", "ip": "10.66.66.2" },
+    { "name": "client_002", "private": "...", "public": "...", "ip": "10.66.66.3" }
+  ]
+}
 ```
 
 ## Architecture
 
-当前默认生成 1 个 Server + 1 个 Client。
-
-代码结构已预留多客户端扩展：
-
-```
+```text
 Server
-├── Client001
-├── Client002
-└── Client003
+├── client_001  (client.conf)
+├── client_002  (client_002.conf)
+└── client_003  (client_003.conf)
 ```
 
-无需重构，在 `ServerConfig.peers` 列表追加 `PeerConfig` 即可。
+## CI
 
-## 扩展方向
+push 后 GitHub Actions 自动用 Nuitka 编译 Windows 单文件 exe，artifact 可下载。
 
-- [ ] 多客户端批量生成
-- [ ] 客户端二维码（qrcode）
-- [ ] 导入已有 server.conf 追加 [Peer]
-- [ ] 一键吊销客户端
-- [ ] Nuitka 打包为单文件 exe
+## 扩展方向（需时再说）
+- 客户端二维码
+- 一键吊销 [Peer]
+- 导入已有 server.conf 补全 keys.json

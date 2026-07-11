@@ -58,6 +58,22 @@ def check_wg_available() -> Optional[str]:
         return str(exc)
 
 
+def derive_pubkey(private_key: str) -> str:
+    """Derive public key from private key via `wg pubkey`."""
+    wg = _wg_binary()
+    try:
+        result = subprocess.run(
+            [wg, "pubkey"],
+            input=private_key.encode(),
+            capture_output=True,
+            check=True,
+            timeout=10,
+        )
+        return result.stdout.decode().strip()
+    except (subprocess.CalledProcessError, OSError) as exc:
+        raise KeyGenError(f"Pubkey derivation failed: {exc}") from exc
+
+
 def generate_keypair() -> KeyPair:
     """
     Generate a WireGuard key pair.
