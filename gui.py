@@ -54,10 +54,11 @@ class _AddClientDialog(ctk.CTkToplevel):
                                    parent=self)
             return
         self._confirmed = True
+        self._result = (self._name.get().strip(), self._ip.get().strip())
         self.destroy()
 
     def result(self) -> tuple[str, str] | None:
-        return (self._name.get().strip(), self._ip.get().strip()) if self._confirmed else None
+        return self._result if self._confirmed else None
 
 
 class WireGuardGUI(ctk.CTk):
