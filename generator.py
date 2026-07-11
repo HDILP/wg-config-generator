@@ -46,6 +46,7 @@ class ProjectManager:
         listen_port: int = 51820,
         server_vpn_ip: str = "10.66.66.1",
         vpn_subnet: str = "10.66.66.0/24",
+        remote_number: str = "",
     ) -> Project:
         """Generate server keys, create project dir, write everything."""
         if not name.strip():
@@ -53,6 +54,7 @@ class ProjectManager:
         keys = generate_keypair()
         project = Project(
             name=name.strip(),
+            remote_number=remote_number.strip(),
             server_public_ip=server_public_ip.strip(),
             server_private_key=keys.private,
             server_public_key=keys.public,

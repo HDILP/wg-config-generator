@@ -162,6 +162,7 @@ class WireGuardGUI(ctk.CTk):
         entries: dict[str, ctk.CTkEntry] = {}
         for label, key, default in [
             ("服务器名称", "name", "管家婆云服务器"),
+            ("远程号码（帮我吧/向日葵）", "remote", ""),
             ("Server Public IP", "ip", ""),
             ("Listen Port", "port", "51820"),
             ("Server VPN IP", "svpn", "10.66.66.1"),
@@ -208,14 +209,16 @@ class WireGuardGUI(ctk.CTk):
         self._new_srv_btn.configure(state="disabled", text="Creating…")
         threading.Thread(
             target=self._create_worker,
-            args=(name, ip, port, e["svpn"].get().strip(), e["subnet"].get().strip()),
+            args=(name, e["remote"].get().strip(), ip, port,
+                  e["svpn"].get().strip(), e["subnet"].get().strip()),
             daemon=True,
         ).start()
 
-    def _create_worker(self, name: str, ip: str, port: int,
+    def _create_worker(self, name: str, remote: str, ip: str, port: int,
                        svpn: str, subnet: str) -> None:
         try:
-            project = ProjectManager.create(name, ip, port, svpn, subnet)
+            project = ProjectManager.create(name, ip, port, svpn, subnet,
+                                             remote_number=remote)
             self.after(0, self._open_detail, project)
         except Exception as exc:  # noqa: BLE001
             self.after(0, lambda: (
@@ -294,6 +297,7 @@ class WireGuardGUI(ctk.CTk):
             ("公网", p.server_public_ip),
             ("VPN", p.server_vpn_ip),
             ("端口", str(p.listen_port)),
+            ("远程协助", p.remote_number or "—"),
         ]:
             f = ctk.CTkFrame(info, fg_color="transparent")
             f.pack(side="left", fill="x", expand=True)
