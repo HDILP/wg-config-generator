@@ -30,8 +30,8 @@ class Project:
     """A complete WireGuard server project — single source of truth."""
 
     name: str
-    remote_number: str = ""  # 帮我吧 / 向日葵 远程协助号码
     server_public_ip: str
+    remote_number: str = ""  # 帮我吧 / 向日葵 远程协助号码
     server_private_key: str = ""
     server_public_key: str = ""
     listen_port: int = 51820

@@ -13,7 +13,7 @@ jobs:
         run: pip install -r requirements.txt nuitka
       - name: Compile with Nuitka
         run: >
-          python -m nuitka --onefile --enable-console
+          python -m nuitka --onefile --windows-console-mode=disable
           --enable-plugin=tk-inter --include-package=customtkinter
           --include-package-data=customtkinter
           --assume-yes-for-downloads
