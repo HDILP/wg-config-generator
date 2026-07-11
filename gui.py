@@ -298,7 +298,6 @@ class WireGuardGUI(ctk.CTk):
             ("公网", p.server_public_ip),
             ("VPN", p.server_vpn_ip),
             ("端口", str(p.listen_port)),
-            ("远程协助", p.remote_number or "—"),
         ]:
             f = ctk.CTkFrame(info, fg_color="transparent")
             f.pack(side="left", fill="x", expand=True)
@@ -306,6 +305,25 @@ class WireGuardGUI(ctk.CTk):
                          text_color="gray50").pack()
             ctk.CTkLabel(f, text=val, font=ctk.CTkFont(size=14, weight="bold")
                          ).pack()
+
+        # Remote number — editable inline
+        f = ctk.CTkFrame(info, fg_color="transparent")
+        f.pack(side="left", fill="x", expand=True)
+        ctk.CTkLabel(f, text="远程协助", font=ctk.CTkFont(size=11),
+                     text_color="gray50").pack()
+        re_frame = ctk.CTkFrame(f, fg_color="transparent")
+        re_frame.pack()
+        self._remote_entry = ctk.CTkEntry(
+            re_frame, width=80, font=ctk.CTkFont(size=13),
+            justify="center",
+        )
+        self._remote_entry.insert(0, p.remote_number)
+        self._remote_entry.pack(side="left")
+        ctk.CTkButton(
+            re_frame, text="💾", width=28, height=24,
+            font=ctk.CTkFont(size=11),
+            command=lambda: self._save_remote(p),
+        ).pack(side="left", padx=(4, 0))
 
         # Separator
         ctk.CTkLabel(self._container, text="─" * 40,
@@ -429,6 +447,12 @@ class WireGuardGUI(ctk.CTk):
                 self._set_status(f"✗ {exc}"),
                 messagebox.showerror("Error", str(exc)),
             ))
+
+    def _save_remote(self, p: Project) -> None:
+        val = self._remote_entry.get().strip()
+        p.remote_number = val
+        ProjectManager.save(p)
+        self._set_status("✓ 远程号码已保存")
 
     def _set_status(self, text: str) -> None:
         if hasattr(self, "_detail_status"):

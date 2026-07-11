@@ -98,6 +98,12 @@ class ProjectManager:
         _write_project(project)
         return entry
 
+    # ── save (update project.json + regenerate configs) ──────
+
+    @staticmethod
+    def save(project: Project) -> None:
+        _write_project(project)
+
     # ── remove client ────────────────────────────────────────
 
     @staticmethod
