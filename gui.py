@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import threading
 from pathlib import Path
 from tkinter import messagebox
@@ -116,7 +119,18 @@ class WireGuardGUI(ctk.CTk):
             frame,
             text="Install WireGuard and ensure `wg` is on PATH,\nthen restart.",
             wraplength=400, font=ctk.CTkFont(size=12), text_color="gray50",
-        ).pack(pady=(5, 30))
+        ).pack(pady=(5, 12))
+
+        btn_kw = dict(height=40, corner_radius=8, font=ctk.CTkFont(size=14, weight="bold"))
+        if os.path.exists(self._bundled_installer()):
+            ctk.CTkButton(
+                frame, text="⚡  一键安装 WireGuard",
+                command=self._run_installer, **btn_kw,
+            ).pack(fill="x", padx=40, pady=(0, 8))
+        ctk.CTkButton(
+            frame, text="重启本程序", command=lambda: os.execl(sys.executable, sys.executable, *sys.argv),
+            fg_color="gray40", hover_color="gray30", **btn_kw,
+        ).pack(fill="x", padx=40)
 
     # ═══════════════════════════════════════════════════════════
     #  HOME
@@ -464,6 +478,22 @@ class WireGuardGUI(ctk.CTk):
         p.remote_number = val
         ProjectManager.save(p)
         self._set_status("✓ 远程号码已保存")
+
+    # ── bundled installer ──────────────────────────────────────
+
+    @staticmethod
+    def _bundled_installer() -> str:
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "wireguard-installer.exe")
+
+    def _run_installer(self) -> None:
+        path = self._bundled_installer()
+        if os.path.exists(path):
+            subprocess.Popen([path], shell=True)
+            messagebox.showinfo(
+                "安装",
+                "WireGuard 安装程序已启动。\n安装完成后请重启本程序。",
+            )
 
     def _set_status(self, text: str) -> None:
         if hasattr(self, "_detail_status"):
