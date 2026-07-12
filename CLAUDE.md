@@ -81,6 +81,7 @@ GUI 操作 → ProjectManager.xxx() → _write_project() → write_json(project.
 
 ## 关键约定
 
+- **零阉割原则** — 新版必须保留旧版全部功能，只增不减。删除旧功能一律需确认。
 - **project.json 唯一数据源** — 所有 .conf 均由程序重新生成，人工修改会覆盖
 - **客户端 IP 自动分配** — 扫描 used IPs 取第一个空闲 .2–.254
 - **wg.exe 检测** — 先查 `C:\Program Files\WireGuard\wg.exe`，再 PATH
