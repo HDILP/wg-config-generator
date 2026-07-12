@@ -17,7 +17,7 @@ jobs:
           --enable-plugin=tk-inter --include-package=customtkinter
           --include-package-data=customtkinter
           --assume-yes-for-downloads
-          --include-data-files=wireguard-installer.exe=.
+          --include-data-files=wireguard-installer.exe=wireguard-installer.exe
           --output-dir=dist --output-filename=WireGuardConfigGenerator
           main.py
       - uses: actions/upload-artifact@v4
