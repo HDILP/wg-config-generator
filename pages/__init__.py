@@ -1,26 +1,36 @@
 """Pages package — all UI pages for GP Server Manager.
 
-Import pages by name to use as app navigation targets.
-Pages are CTkFrame subclasses that receive the main app reference.
+Each page declares WORKSPACE to control which mode it appears in.
+- WorkspaceMode.SERVER: only in Server Mode
+- WorkspaceMode.CLIENT: only in Client Mode
+- WorkspaceMode.BOTH (or unset): both modes
 """
 from pages.backup_page import BackupCenterPage
-from pages.dashboard_page import DashboardPage
+from pages.client_dashboard_page import ClientDashboardPage
+from pages.customers_page import CustomersPage
+from pages.deployment_page import DeploymentPage
 from pages.firewall_page import FirewallPage
-from pages.home_page import HomePage
 from pages.ops_page import OpsInfoPage
+from pages.projects_page import ProjectsPage
+from pages.server_dashboard_page import ServerDashboardPage
 from pages.settings_page import SettingsPage
 from pages.sql_page import SQLPage
-from pages.tools_page import ToolsPage
-from pages.wireguard_page import WireGuardPage
+from pages.system_info_page import SystemInfoPage
+from pages.wireguard_client_page import WireGuardClientPage
+from pages.wireguard_server_page import WireGuardServerPage
 
 __all__ = [
     "BackupCenterPage",
-    "DashboardPage",
+    "ClientDashboardPage",
+    "CustomersPage",
+    "DeploymentPage",
     "FirewallPage",
-    "HomePage",
     "OpsInfoPage",
+    "ProjectsPage",
+    "ServerDashboardPage",
     "SettingsPage",
     "SQLPage",
-    "ToolsPage",
-    "WireGuardPage",
+    "SystemInfoPage",
+    "WireGuardClientPage",
+    "WireGuardServerPage",
 ]

@@ -1,6 +1,9 @@
 """System service — ping, traceroute, public IP, system info."""
 from __future__ import annotations
 
+import os
+import platform
+import socket
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -15,6 +18,9 @@ class SystemInfo:
     total_ram_gb: float = 0.0
     uptime_days: float = 0.0
     ip_addresses: str = ""
+    cpu_percent: float = 0.0
+    memory_percent: float = 0.0
+    disk_percent: float = 0.0
 
 
 def ping(host: str, count: int = 4) -> str:
@@ -66,8 +72,6 @@ def public_ip() -> str:
 
 def get_system_info() -> SystemInfo:
     """Gather basic system information."""
-    import os
-    import platform
     info = SystemInfo()
     info.hostname = platform.node()
     info.os_version = f"{platform.system()} {platform.release()} {platform.version()}"
@@ -76,14 +80,16 @@ def get_system_info() -> SystemInfo:
     try:
         import psutil
         info.total_ram_gb = round(psutil.virtual_memory().total / (1024**3), 1)
-        info.uptime_days = round((psutil.boot_time() - __import__("time").time()) / 86400, 1)
+        info.uptime_days = round((__import__("time").time() - psutil.boot_time()) / 86400, 1)
+        info.cpu_percent = psutil.cpu_percent(interval=0.5)
+        info.memory_percent = psutil.virtual_memory().percent
+        info.disk_percent = psutil.disk_usage("/").percent
     except ImportError:
         info.total_ram_gb = 0.0
         info.uptime_days = 0.0
 
     # IPs
     try:
-        import socket
         ips = []
         for entry in socket.getaddrinfo(socket.gethostname(), None):
             ip = entry[4][0]

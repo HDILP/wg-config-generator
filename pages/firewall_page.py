@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Dict
 
 import customtkinter as ctk
 
+from app.workspace import WorkspaceMode
 from models.project import Project
 from services.firewall_service import WELL_KNOWN_PORTS, apply_custom_port, apply_well_known
 
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
 
 class FirewallPage(ctk.CTkFrame):
     """Windows Firewall rule management."""
+    WORKSPACE = WorkspaceMode.SERVER
 
     def __init__(self, master, app: GPServerManager, project: Project, **kwargs):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)

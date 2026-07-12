@@ -1,4 +1,4 @@
-"""WireGuard page — server info, client list, add/remove/export/regen."""
+"""WireGuard Client page — create configs, manage keys, export."""
 from __future__ import annotations
 
 import threading
@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Optional
 
 import customtkinter as ctk
 
+from app.workspace import WorkspaceMode
 from core.project_manager import ProjectManager
 from models.project import Project
 from utils.file_ops import open_folder
@@ -15,60 +16,47 @@ if TYPE_CHECKING:
     from app.app import GPServerManager
 
 
-class WireGuardPage(ctk.CTkFrame):
-    """WireGuard management: server info + client CRUD."""
+class WireGuardClientPage(ctk.CTkFrame):
+    """Client-mode WireGuard: config generation, client CRUD, export."""
+    WORKSPACE = WorkspaceMode.CLIENT
 
-    def __init__(self, master, app: GPServerManager, project: Project, **kwargs):
+    def __init__(self, master, app: GPServerManager, **kwargs):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)
         self._app = app
-        self._project = project
+        self._project: Optional[Project] = None
         self._build()
-
-    def refresh(self) -> None:
-        # Reload project from disk
-        self._project = ProjectManager.load(self._project.name)
-        self._clear()
-        self._build()
-
-    def _clear(self) -> None:
-        for w in self.winfo_children():
-            w.destroy()
 
     def _build(self) -> None:
-        p = self._project
-        s = p.settings
+        self._project = self._app.get_current_project()
 
-        # Header
-        hdr = ctk.CTkFrame(self, fg_color="transparent")
-        hdr.pack(fill="x", padx=24, pady=(20, 8))
         ctk.CTkLabel(
-            hdr, text="WireGuard", font=ctk.CTkFont(size=20, weight="bold"),
-        ).pack(side="left")
-        ctk.CTkButton(
-            hdr, text="📁 打开目录", width=90, height=28,
-            font=ctk.CTkFont(size=11),
-            command=lambda: open_folder(p.dir),
-        ).pack(side="right", padx=(6, 0))
-        ctk.CTkButton(
-            hdr, text="🔄 刷新", width=70, height=28,
-            font=ctk.CTkFont(size=11),
-            command=self.refresh,
-        ).pack(side="right")
+            self, text="WireGuard 配置",
+            font=ctk.CTkFont(size=20, weight="bold"),
+        ).pack(anchor="w", padx=24, pady=(20, 16))
+
+        if not self._project:
+            ctk.CTkLabel(self, text="请先打开一个项目",
+                         font=ctk.CTkFont(size=14),
+                         text_color="#79747E").pack(pady=40)
+            return
+
+        s = self._project.settings
 
         # Server info
         info = ctk.CTkFrame(self, corner_radius=12)
         info.pack(fill="x", padx=24, pady=(0, 12))
 
-        ctk.CTkLabel(info, text="服务器信息", font=ctk.CTkFont(size=14, weight="bold"),
+        ctk.CTkLabel(info, text="服务器信息",
+                     font=ctk.CTkFont(size=14, weight="bold"),
                      ).pack(anchor="w", padx=16, pady=(10, 6))
 
-        rows = [
+        for label, val in [
             ("公网 IP", s.public_ip or "未设置"),
             ("VPN 地址", f"{s.vpn_ip}/24"),
             ("监听端口", str(s.listen_port)),
-            ("公钥", p.server_keypair.public[:32] + "..." if p.server_keypair.public else "未生成"),
-        ]
-        for label, val in rows:
+            ("公钥", (self._project.server_keypair.public[:32] + "..."
+                      if self._project.server_keypair.public else "未生成")),
+        ]:
             row = ctk.CTkFrame(info, fg_color="transparent")
             row.pack(fill="x", padx=16, pady=2)
             ctk.CTkLabel(row, text=label, font=ctk.CTkFont(size=12),
@@ -76,19 +64,35 @@ class WireGuardPage(ctk.CTkFrame):
             ctk.CTkLabel(row, text=val, font=ctk.CTkFont(size=12),
                          anchor="w").pack(side="left", fill="x", expand=True)
 
+        # Edit server conf
+        edit_frame = ctk.CTkFrame(self, corner_radius=12)
+        edit_frame.pack(fill="x", padx=24, pady=(0, 12))
+        ctk.CTkLabel(edit_frame, text="服务端配置",
+                     font=ctk.CTkFont(size=14, weight="bold"),
+                     ).pack(anchor="w", padx=16, pady=(10, 6))
+        row = ctk.CTkFrame(edit_frame, fg_color="transparent")
+        row.pack(fill="x", padx=16, pady=(0, 10))
+        ctk.CTkButton(row, text="📝 编辑 server.conf", height=32,
+                       command=self._edit_server_conf).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(row, text="📂 打开目录", height=32,
+                       command=lambda: open_folder(self._project.dir),
+                       ).pack(side="left")
+
         # Client list
-        ctk.CTkLabel(self, text=f"客户端 ({len(p.clients)})",
+        ctk.CTkLabel(self, text=f"客户端 ({len(self._project.clients)})",
                      font=ctk.CTkFont(size=14, weight="bold"),
                      ).pack(anchor="w", padx=24, pady=(8, 6))
 
         scroll = ctk.CTkScrollableFrame(self, corner_radius=12, height=200)
         scroll.pack(fill="x", padx=24, pady=(0, 12))
 
-        if not p.clients:
-            ctk.CTkLabel(scroll, text="暂无客户端", text_color="#79747E",
+
+        if not self._project.clients:
+            ctk.CTkLabel(scroll, text="暂无客户端",
+                         text_color="#79747E",
                          font=ctk.CTkFont(size=12)).pack(pady=20)
         else:
-            for i, c in enumerate(p.clients, 1):
+            for i, c in enumerate(self._project.clients, 1):
                 row = ctk.CTkFrame(scroll, fg_color="transparent")
                 row.pack(fill="x", pady=3, padx=8)
 
@@ -98,57 +102,64 @@ class WireGuardPage(ctk.CTkFrame):
                              anchor="w", width=120).pack(side="left")
                 ctk.CTkLabel(row, text=c.vpn_ip, font=ctk.CTkFont(size=12),
                              text_color="#79747E", width=100).pack(side="left")
-                status_icon = "●" if c.status.value == "active" else "○"
-                status_color = "#4CAF50" if c.status.value == "active" else "#9E9E9E"
-                ctk.CTkLabel(row, text=status_icon, font=ctk.CTkFont(size=12),
-                             text_color=status_color, width=20).pack(side="left")
 
-                # Actions
                 btn_frame = ctk.CTkFrame(row, fg_color="transparent")
                 btn_frame.pack(side="right")
-                ctk.CTkButton(
-                    btn_frame, text="📁", width=28, height=24,
-                    font=ctk.CTkFont(size=10),
-                    command=lambda n=c.name: open_folder(p.dir / "clients" / n),
-                ).pack(side="left", padx=2)
-                ctk.CTkButton(
-                    btn_frame, text="🔄", width=28, height=24,
-                    font=ctk.CTkFont(size=10),
-                    command=lambda n=c.name: self._regen_client(n),
-                ).pack(side="left", padx=2)
-                ctk.CTkButton(
-                    btn_frame, text="✕", width=28, height=24,
-                    fg_color="#b33", hover_color="#922",
-                    font=ctk.CTkFont(size=10),
-                    command=lambda n=c.name: self._remove_client(n),
-                ).pack(side="left", padx=2)
+                ctk.CTkButton(btn_frame, text="📁", width=28, height=24,
+                              font=ctk.CTkFont(size=10),
+                              command=lambda n=c.name: open_folder(
+                                  self._project.dir / "clients" / n),
+                              ).pack(side="left", padx=2)
+                ctk.CTkButton(btn_frame, text="📱", width=28, height=24,
+                              font=ctk.CTkFont(size=10),
+                              command=lambda n=c.name: self._export_qr(n),
+                              ).pack(side="left", padx=2)
+                ctk.CTkButton(btn_frame, text="✕", width=28, height=24,
+                              fg_color="#b33", hover_color="#922",
+                              font=ctk.CTkFont(size=10),
+                              command=lambda n=c.name: self._remove_client(n),
+                              ).pack(side="left", padx=2)
 
         # Actions
         act = ctk.CTkFrame(self, fg_color="transparent")
         act.pack(fill="x", padx=24)
 
-        ctk.CTkButton(
-            act, text="← 返回仪表盘", width=110,
-            font=ctk.CTkFont(size=12),
-            command=lambda: self._app.show_dashboard(),
-        ).pack(side="left")
+        ctk.CTkButton(act, text="← 返回仪表盘", width=110,
+                       font=ctk.CTkFont(size=12),
+                       command=lambda: self._app.show_dashboard(),
+                       ).pack(side="left")
 
-        ctk.CTkButton(
-            act, text="＋ 新增客户端",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            fg_color="#2b7a4b", hover_color="#1e5f38",
-            command=self._add_client,
-        ).pack(side="right")
+        ctk.CTkButton(act, text="＋ 新增客户端",
+                       font=ctk.CTkFont(size=13, weight="bold"),
+                       fg_color="#2b7a4b",
+                       command=self._add_client,
+                       ).pack(side="right")
 
-        # Status
         self._status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
                                      text_color="#79747E")
         self._status.pack(pady=(8, 4))
 
+    def refresh(self) -> None:
+        for w in self.winfo_children():
+            w.destroy()
+        self._build()
+
     def _set_status(self, text: str) -> None:
         self._status.configure(text=text)
 
+    def _edit_server_conf(self) -> None:
+        if not self._project:
+            return
+        path = self._project.dir / "server.conf"
+        if path.exists():
+            # ponytail: open in notepad on Windows
+            import subprocess, sys as _sys
+            _sys.platform == "win32" and subprocess.Popen(["notepad", str(path)])
+            self._set_status("已打开 server.conf")
+
     def _add_client(self) -> None:
+        if not self._project:
+            return
         p = self._project
         base = ".".join(p.settings.vpn_ip.split(".")[:3])
         used = {c.vpn_ip for c in p.clients} | {p.settings.vpn_ip}
@@ -165,21 +176,17 @@ class WireGuardPage(ctk.CTkFrame):
         if res is None:
             return
         name, ip = res
-
-        self._set_status(f"Adding client {name}…")
+        self._set_status(f"Adding {name}…")
         threading.Thread(target=self._add_worker, args=(name, ip or None),
                          daemon=True).start()
 
     def _add_worker(self, name: str, ip: Optional[str]) -> None:
         try:
-            ProjectManager.add_client(self._project, name, ip)
+            self._project = ProjectManager.add_client(self._project, name, ip)
             self.after(0, self.refresh)
             self.after(0, lambda: self._set_status(f"✓ {name} added"))
         except Exception as exc:
-            self.after(0, lambda: (
-                self._set_status(f"✗ {exc}"),
-                messagebox.showerror("Error", str(exc)),
-            ))
+            self.after(0, lambda: self._set_status(f"✗ {exc}"))
 
     def _remove_client(self, name: str) -> None:
         if not messagebox.askyesno("确认", f"确定删除客户端 '{name}'？"):
@@ -191,36 +198,29 @@ class WireGuardPage(ctk.CTkFrame):
     def _remove_worker(self, name: str) -> None:
         try:
             ProjectManager.remove_client(self._project, name)
+            self._project = ProjectManager.load(self._project.name)
             self.after(0, self.refresh)
             self.after(0, lambda: self._set_status(f"✓ {name} removed"))
         except Exception as exc:
-            self.after(0, lambda: (
-                self._set_status(f"✗ {exc}"),
-                messagebox.showerror("Error", str(exc)),
-            ))
+            self.after(0, lambda: self._set_status(f"✗ {exc}"))
 
-    def _regen_client(self, name: str) -> None:
-        if not messagebox.askyesno("确认", f"重新生成客户端 '{name}' 的密钥？"):
-            return
-        self._set_status(f"Regenerating {name}…")
-        threading.Thread(target=self._regen_worker, args=(name,),
-                         daemon=True).start()
-
-    def _regen_worker(self, name: str) -> None:
+    def _export_qr(self, name: str) -> None:
         try:
-            self._project = ProjectManager.regenerate_client(self._project, name)
-            self.after(0, self.refresh)
-            self.after(0, lambda: self._set_status(f"✓ {name} regenerated"))
+            cfg = ProjectManager.export_client_config(self._project, name)
+            path = self._project.dir / "clients" / name / "qrcode.png"
+            if path.exists():
+                open_folder(path.parent)
+                self._set_status(f"✓ QR code for {name}")
+            else:
+                from core.qrcode_gen import generate_qr_code
+                generate_qr_code(cfg, path)
+                open_folder(path.parent)
+                self._set_status(f"✓ QR code generated for {name}")
         except Exception as exc:
-            self.after(0, lambda: (
-                self._set_status(f"✗ {exc}"),
-                messagebox.showerror("Error", str(exc)),
-            ))
+            self._set_status(f"✗ {exc}")
 
 
 class _AddClientDialog(ctk.CTkToplevel):
-    """Small popup for client name + optional IP."""
-
     def __init__(self, parent, suggested_ip: str):
         super().__init__(parent)
         self.title("新增客户端")

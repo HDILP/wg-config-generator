@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 
 import customtkinter as ctk
 
+from app.workspace import WorkspaceMode
 from core.project_manager import ProjectManager
 from models.backup import BackupPolicy
 from models.project import Project
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
 
 class BackupCenterPage(ctk.CTkFrame):
     """Backup Center — one page, multiple sub-views (quick, history, restore, browser)."""
+    WORKSPACE = WorkspaceMode.SERVER
 
     def __init__(self, master, app: GPServerManager, project: Project, **kwargs):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)

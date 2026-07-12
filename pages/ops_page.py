@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Dict
 
 import customtkinter as ctk
 
+from app.workspace import WorkspaceMode
 from core.project_manager import ProjectManager
 from models.project import Project
 
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
 
 class OpsInfoPage(ctk.CTkFrame):
     """Operational information editor."""
+    WORKSPACE = WorkspaceMode.CLIENT
 
     def __init__(self, master, app: GPServerManager, project: Project, **kwargs):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)

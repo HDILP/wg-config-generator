@@ -1,6 +1,5 @@
 """Data models for GP Server Manager."""
-from __future__ import annotations
-
+from models.app_settings import AppSettings
 from models.backup import BackupPolicy
 from models.client import ClientEntry, ClientStatus
 from models.keypair import KeyPair
@@ -13,6 +12,7 @@ from models.project import (
 )
 
 __all__ = [
+    "AppSettings",
     "BackupPolicy",
     "ClientEntry",
     "ClientStatus",
