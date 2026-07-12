@@ -135,11 +135,22 @@ class WireGuardClientPage(ctk.CTkFrame):
                        command=self._add_client,
                        ).pack(side="right")
 
-        ctk.CTkButton(act, text="📦 生成部署包", height=32,
+        # Target OS + deploy button
+        os_frame = ctk.CTkFrame(self, fg_color="transparent")
+        os_frame.pack(fill="x", padx=24, pady=(8, 0))
+        self._os_var = ctk.StringVar(value="win10")
+        ctk.CTkRadioButton(os_frame, text="Win10/11", variable=self._os_var,
+                           value="win10", font=ctk.CTkFont(size=11),
+                           ).pack(side="left", padx=(0, 16))
+        ctk.CTkRadioButton(os_frame, text="Win7", variable=self._os_var,
+                           value="win7", font=ctk.CTkFont(size=11),
+                           ).pack(side="left")
+
+        ctk.CTkButton(os_frame, text="📦 生成部署包", height=32,
                        font=ctk.CTkFont(size=12),
                        fg_color="#6750A4",
                        command=self._generate_deploy,
-                       ).pack(side="right", padx=(6, 0))
+                       ).pack(side="right")
 
         self._status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
                                      text_color="#79747E")
@@ -229,13 +240,15 @@ class WireGuardClientPage(ctk.CTkFrame):
         """One-click deploy package: Deploy/<name>/Server/ + Client/."""
         from pathlib import Path
         import shutil
+        import platform
 
         p = self._project
         if not p:
             return
+        is_win7 = hasattr(self, '_os_var') and self._os_var.get() == "win7"
         deploy_dir = Path("Deploy") / p.name
         server_dir = ensure_dir(deploy_dir / "Server")
-        client_dir = ensure_dir(deploy_dir / "Client")
+        client_base = ensure_dir(deploy_dir / "Client")
 
         # Write server.conf
         write_text(server_dir / "server.conf",
@@ -246,6 +259,9 @@ class WireGuardClientPage(ctk.CTkFrame):
         if installer_src.exists():
             shutil.copy2(installer_src, server_dir / "WireGuard.exe")
 
+        if is_win7:
+            _write_win7_batch(server_dir)
+
         # Server README
         write_text(server_dir / "README_Server.txt",
                    f"""GP Server Manager — 部署包
@@ -254,9 +270,10 @@ class WireGuardClientPage(ctk.CTkFrame):
 公网 IP: {p.settings.public_ip}
 VPN 地址: {p.settings.vpn_ip}
 监听端口: {p.settings.listen_port}
+目标系统: {"Windows 7" if is_win7 else "Windows 10/11"}
 
 服务器部署步骤:
-1. 安装 WireGuard（如已安装可跳过）
+1. {"运行 install_win7.bat（自动安装补丁）" if is_win7 else "安装 WireGuard（如已安装可跳过）"}
 2. 打开 WireGuard → 导入 server.conf
 3. 激活隧道
 4. 设置为 Tunnel Service（可选）
@@ -266,11 +283,13 @@ VPN 地址: {p.settings.vpn_ip}
 
         # Per-client files
         for c in p.clients:
-            c_out = ensure_dir(client_dir / c.name)
+            c_out = ensure_dir(client_base / c.name)
             cfg = ProjectManager.export_client_config(p, c.name)
             write_text(c_out / "client.conf", cfg)
             if installer_src.exists():
                 shutil.copy2(installer_src, c_out / "WireGuard.exe")
+            if is_win7:
+                _write_win7_batch(c_out)
             write_text(c_out / "README_Client.txt",
                        f"""{c.name}
 ====================
@@ -294,6 +313,74 @@ VPN IP: {c.vpn_ip}
         open_folder(deploy_dir)
         self._set_status(f"✓ 部署包已生成: {deploy_dir}")
 
+
+def _write_win7_batch(target_dir) -> None:
+    """Write install_win7.bat — checks KBs, downloads & installs missing ones."""
+    from pathlib import Path
+    write_text(target_dir / "install_win7.bat", """@echo off
+chcp 65001 >nul
+title WireGuard Win7 补丁安装
+echo ═══════════════════════════════════════
+echo   WireGuard Windows 7 补丁安装工具
+echo ═══════════════════════════════════════
+echo.
+
+:: Check KB2921916
+reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\Packages\\Package_for_KB2921916~*" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [✓] KB2921916 已安装
+    set "KB1_DONE=1"
+) else (
+    echo [✗] KB2921916 未安装
+    set "KB1_DONE=0"
+)
+
+:: Check KB3033929
+reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\Packages\\Package_for_KB3033929~*" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [✓] KB3033929 已安装
+    set "KB2_DONE=1"
+) else (
+    echo [✗] KB3033929 未安装
+    set "KB2_DONE=0"
+)
+
+echo.
+
+if "%KB1_DONE%"=="1" if "%KB2_DONE%"=="1" (
+    echo 所有补丁已安装，可直接安装 WireGuard。
+    pause
+    exit /b 0
+)
+
+:: Download
+set "URL1=https://download.wireguard.com/windows-toolchain/distfiles/Windows6.1-KB2921916-x64.msu"
+set "URL2=https://download.microsoft.com/download/c/8/7/c87ae67e-a228-48fb-8f02-b2a9a1238099/Windows6.1-KB3033929-x64.msu"
+
+echo 正在下载补丁...
+if "%KB1_DONE%"=="0" (
+    echo 下载 KB2921916...
+    bitsadmin /transfer "KB2921916" /download /priority high "%URL1%" "%CD%\\KB2921916.msu" >nul 2>&1
+    if exist "KB2921916.msu" (
+        echo 安装 KB2921916...
+        wusa "KB2921916.msu" /quiet /norestart
+    )
+)
+if "%KB2_DONE%"=="0" (
+    echo 下载 KB3033929...
+    bitsadmin /transfer "KB3033929" /download /priority high "%URL2%" "%CD%\\KB3033929.msu" >nul 2>&1
+    if exist "KB3033929.msu" (
+        echo 安装 KB3033929...
+        wusa "KB3033929.msu" /quiet /norestart
+    )
+)
+
+echo.
+echo ===== 安装完成 =====
+echo 请重启计算机后再安装 WireGuard。
+echo.
+pause
+""")
 
 class _AddClientDialog(ctk.CTkToplevel):
     def __init__(self, parent, suggested_ip: str):

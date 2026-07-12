@@ -110,5 +110,18 @@ class WireGuardServerPage(ctk.CTkFrame):
 
     @staticmethod
     def _install_wireguard() -> None:
+        import platform, sys as _sys
+        if platform.release().startswith("6.1"):
+            from tkinter import messagebox
+            messagebox.showwarning(
+                "Win7 需要补丁",
+                "当前系统为 Windows 7。\n\n"
+                "WireGuard 官方安装程序需要两个补丁：\n"
+                "• KB2921916 — 驱动签名信任\n"
+                "• KB3033929 — SHA-256 证书支持\n\n"
+                "请使用 Client Mode 生成部署包，\n"
+                "部署包已包含自动安装脚本（install_win7.bat）。"
+            )
+            return
         import subprocess
         subprocess.Popen([str(WG_INSTALLER)], shell=True)
