@@ -18,7 +18,7 @@ def write_text(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def write_json(path: Path, data: Dict[str, Any]) -> None:
+def write_json(path: Path, data: Any) -> None:
     path.write_text(
         json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
     )

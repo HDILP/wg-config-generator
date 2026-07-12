@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from models.backup import BackupPolicy
 from models.client import ClientEntry
 from models.keypair import KeyPair
 
@@ -52,6 +53,8 @@ class ProjectSettings:
     sql: SqlConfig = field(default_factory=SqlConfig)
 
     ops: OpsInfo = field(default_factory=OpsInfo)
+
+    backup: BackupPolicy = field(default_factory=BackupPolicy)
 
     note: str = ""
 
@@ -117,6 +120,15 @@ class Project:
                 "sql_version": ops.sql_version,
                 "gp_version": ops.gp_version,
             },
+            "backup": {
+                "enabled": s.backup.enabled,
+                "databases": s.backup.databases,
+                "schedule_time": s.backup.schedule_time,
+                "save_path": s.backup.save_path,
+                "retention_days": s.backup.retention_days,
+                "compression": s.backup.compression,
+                "compression_auto_disabled": s.backup.compression_auto_disabled,
+            },
             "note": s.note,
             "clients": [
                 {
@@ -164,6 +176,15 @@ class Project:
                 gp_version=ops_data.get("gp_version", ""),
             ),
             note=data.get("note", ""),
+            backup=BackupPolicy(
+                enabled=bd.get("enabled", False),
+                databases=bd.get("databases", []),
+                schedule_time=bd.get("schedule_time", "02:00"),
+                save_path=bd.get("save_path", "D:\\SQLBackup"),
+                retention_days=bd.get("retention_days", 30),
+                compression=bd.get("compression", True),
+                compression_auto_disabled=bd.get("compression_auto_disabled", False),
+            ) if (bd := data.get("backup")) else BackupPolicy(),
         )
         clients = []
         for c in data.get("clients", []):

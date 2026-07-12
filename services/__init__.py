@@ -1,4 +1,19 @@
-"""Services — WireGuard, SQL Server, Firewall, System."""
+"""Services — WireGuard, SQL Server, Firewall, System, Backup."""
+from services.backup_service import (
+    BackupHealth,
+    BackupHistoryEntry,
+    check_compression_support,
+    cleanup_old_backups,
+    create_scheduled_task,
+    get_backup_files,
+    get_backup_health,
+    get_backup_history,
+    get_db_sizes,
+    immediate_backup,
+    list_databases,
+    remove_scheduled_task,
+    restore_database,
+)
 from services.firewall_service import (
     add_rule,
     apply_custom_port,

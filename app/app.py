@@ -18,6 +18,7 @@ from core.project_manager import ProjectManager
 from core.wg_keygen import check_wg_available, generate_keypair
 from models.project import OpsInfo, Project, ProjectSettings, RemoteInfo, SqlConfig
 from pages import (
+    BackupCenterPage,
     DashboardPage,
     FirewallPage,
     HomePage,
@@ -114,6 +115,7 @@ class GPServerManager(ctk.CTk):
         self._nav_buttons: Dict[str, ctk.CTkButton] = {}
         nav_items = [
             ("仪表盘", "📊", "show_dashboard"),
+            ("备份中心", "💾", "show_backup"),
             ("WireGuard", "🔒", "show_wireguard"),
             ("SQL Server", "🗄", "show_sql"),
             ("防火墙", "🛡", "show_firewall"),
@@ -276,6 +278,13 @@ class GPServerManager(ctk.CTk):
             return
         self._current_page = "firewall"
         page = FirewallPage(self._content, self._current_project)
+        self._switch_to(page)
+
+    def show_backup(self) -> None:
+        if not self._current_project:
+            return
+        self._current_page = "backup"
+        page = BackupCenterPage(self._content, self._current_project)
         self._switch_to(page)
 
     def show_ops(self) -> None:
