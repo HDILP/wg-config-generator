@@ -18,7 +18,7 @@ jobs:
           --include-package-data=customtkinter
           --include-package=app,backup,core,models,pages,services,utils,widgets
           --include-data-files=wireguard-installer.exe=.
-          --include-data-files=assets/kbs/\\*.msu=assets/kbs/
+          --include-data-files=assets/kbs/KB2921916.msu=assets/kbs/
           --assume-yes-for-downloads
           --output-dir=dist --output-filename=GPServerManager
           main.py

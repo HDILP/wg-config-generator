@@ -367,17 +367,14 @@ if "%KB1_DONE%"=="0" if exist "%~dp0KB2921916.msu" (
     wusa "%~dp0KB2921916.msu" /quiet /norestart
     set "KB1_DONE=1"
 )
-if "%KB2_DONE%"=="0" if exist "%~dp0KB3033929.msu" (
-    echo 安装 KB3033929...
-    wusa "%~dp0KB3033929.msu" /quiet /norestart
-    set "KB2_DONE=1"
-)
 
-if "%KB1_DONE%"=="0" (
-    echo [✗] KB2921916.msu 未找到，请确认文件已放置在当前目录。
-)
 if "%KB2_DONE%"=="0" (
-    echo [✗] KB3033929.msu 未找到，请确认文件已放置在当前目录。
+    echo 下载 KB3033929...
+    bitsadmin /transfer "KB3033929" /download /priority high "https://download.microsoft.com/download/c/8/7/c87ae67e-a228-48fb-8f02-b2a9a1238099/Windows6.1-KB3033929-x64.msu" "%TEMP%\\KB3033929.msu" >nul 2>&1
+    if exist "%TEMP%\\KB3033929.msu" (
+        echo 安装 KB3033929...
+        wusa "%TEMP%\\KB3033929.msu" /quiet /norestart
+    )
 )
 
 echo.
