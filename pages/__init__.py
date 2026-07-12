@@ -8,7 +8,6 @@ Each page declares WORKSPACE to control which mode it appears in.
 from pages.backup_page import BackupCenterPage
 from pages.client_dashboard_page import ClientDashboardPage
 from pages.customers_page import CustomersPage
-from pages.deployment_page import DeploymentPage
 from pages.firewall_page import FirewallPage
 from pages.ops_page import OpsInfoPage
 from pages.projects_page import ProjectsPage
@@ -23,7 +22,6 @@ __all__ = [
     "BackupCenterPage",
     "ClientDashboardPage",
     "CustomersPage",
-    "DeploymentPage",
     "FirewallPage",
     "OpsInfoPage",
     "ProjectsPage",

@@ -33,7 +33,6 @@ CLIENT_NAV: List[NavItem] = [
     NavItem("项目列表", "📁", "show_projects"),
     NavItem("客户管理", "👥", "show_customers"),
     NavItem("WireGuard 配置", "🔒", "show_wireguard"),
-    NavItem("部署资料", "📦", "show_deployment"),
     NavItem("运维信息", "📋", "show_ops"),
 ]
 

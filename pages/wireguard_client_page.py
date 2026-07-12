@@ -10,7 +10,7 @@ import customtkinter as ctk
 from app.workspace import WorkspaceMode
 from core.project_manager import ProjectManager
 from models.project import Project
-from utils.file_ops import open_folder
+from utils.file_ops import ensure_dir, open_folder, write_text
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
@@ -135,6 +135,12 @@ class WireGuardClientPage(ctk.CTkFrame):
                        command=self._add_client,
                        ).pack(side="right")
 
+        ctk.CTkButton(act, text="📦 生成部署包", height=32,
+                       font=ctk.CTkFont(size=12),
+                       fg_color="#6750A4",
+                       command=self._generate_deploy,
+                       ).pack(side="right", padx=(6, 0))
+
         self._status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
                                      text_color="#79747E")
         self._status.pack(pady=(8, 4))
@@ -218,6 +224,75 @@ class WireGuardClientPage(ctk.CTkFrame):
                 self._set_status(f"✓ QR code generated for {name}")
         except Exception as exc:
             self._set_status(f"✗ {exc}")
+
+    def _generate_deploy(self) -> None:
+        """One-click deploy package: Deploy/<name>/Server/ + Client/."""
+        from pathlib import Path
+        import shutil
+
+        p = self._project
+        if not p:
+            return
+        deploy_dir = Path("Deploy") / p.name
+        server_dir = ensure_dir(deploy_dir / "Server")
+        client_dir = ensure_dir(deploy_dir / "Client")
+
+        # Write server.conf
+        write_text(server_dir / "server.conf",
+                   ProjectManager.export_server_conf(p))
+
+        # Copy WireGuard installer
+        installer_src = Path(__file__).resolve().parent.parent / "wireguard-installer.exe"
+        if installer_src.exists():
+            shutil.copy2(installer_src, server_dir / "WireGuard.exe")
+
+        # Server README
+        write_text(server_dir / "README_Server.txt",
+                   f"""GP Server Manager — 部署包
+===========================
+项目: {p.name}
+公网 IP: {p.settings.public_ip}
+VPN 地址: {p.settings.vpn_ip}
+监听端口: {p.settings.listen_port}
+
+服务器部署步骤:
+1. 安装 WireGuard（如已安装可跳过）
+2. 打开 WireGuard → 导入 server.conf
+3. 激活隧道
+4. 设置为 Tunnel Service（可选）
+
+生成时间: {__import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M")}
+""")
+
+        # Per-client files
+        for c in p.clients:
+            c_out = ensure_dir(client_dir / c.name)
+            cfg = ProjectManager.export_client_config(p, c.name)
+            write_text(c_out / "client.conf", cfg)
+            if installer_src.exists():
+                shutil.copy2(installer_src, c_out / "WireGuard.exe")
+            write_text(c_out / "README_Client.txt",
+                       f"""{c.name}
+====================
+VPN IP: {c.vpn_ip}
+服务器: {p.settings.public_ip}:{p.settings.listen_port}
+
+客户端部署步骤:
+1. 安装 WireGuard（如已安装可跳过）
+2. 双击 client.conf 或打开 WireGuard → 导入
+3. 激活
+
+服务器公钥: {p.server_keypair.public}
+""")
+            # QR code
+            try:
+                from core.qrcode_gen import generate_qr_code
+                generate_qr_code(cfg, c_out / "qrcode.png")
+            except ImportError:
+                pass
+
+        open_folder(deploy_dir)
+        self._set_status(f"✓ 部署包已生成: {deploy_dir}")
 
 
 class _AddClientDialog(ctk.CTkToplevel):

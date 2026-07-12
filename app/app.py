@@ -34,7 +34,6 @@ from pages import (
     WireGuardClientPage,
     WireGuardServerPage,
 )
-from services.system_service import get_system_info
 
 
 class GPServerManager(ctk.CTk):
@@ -295,15 +294,6 @@ class GPServerManager(ctk.CTk):
         self._current_page = "show_customers"
         self._update_nav("show_customers")
         self._switch_to(CustomersPage, self)
-
-    def show_deployment(self) -> None:
-        if self._workspace != WorkspaceMode.CLIENT:
-            return
-        self._current_page = "show_deployment"
-        self._update_nav("show_deployment")
-
-        from pages.deployment_page import DeploymentPage
-        self._switch_to(DeploymentPage, self)
 
     def show_ops(self) -> None:
         if self._workspace != WorkspaceMode.CLIENT:
