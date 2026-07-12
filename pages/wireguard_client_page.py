@@ -261,6 +261,14 @@ class WireGuardClientPage(ctk.CTkFrame):
 
         if is_win7:
             _write_win7_batch(server_dir)
+            # Copy KB patches if available
+            kbs_dir = Path(__file__).resolve().parent.parent / "assets" / "kbs"
+            if kbs_dir.exists():
+                for f in kbs_dir.iterdir():
+                    if f.suffix in (".msu", ".exe"):
+                        shutil.copy2(f, server_dir)
+                        for c in p.clients:
+                            shutil.copy2(f, client_base / c.name)
 
         # Server README
         write_text(server_dir / "README_Server.txt",
@@ -353,25 +361,34 @@ if "%KB1_DONE%"=="1" if "%KB2_DONE%"=="1" (
     exit /b 0
 )
 
-:: Download
+:: 尝试本地补丁文件
+if "%KB1_DONE%"=="0" if exist "%~dp0KB2921916.msu" (
+    echo 安装 KB2921916（本地文件）...
+    wusa "%~dp0KB2921916.msu" /quiet /norestart
+    set "KB1_DONE=1"
+)
+if "%KB2_DONE%"=="0" if exist "%~dp0KB3033929.msu" (
+    echo 安装 KB3033929（本地文件）...
+    wusa "%~dp0KB3033929.msu" /quiet /norestart
+    set "KB2_DONE=1"
+)
+
+:: 在线下载（后备）
 set "URL1=https://download.wireguard.com/windows-toolchain/distfiles/Windows6.1-KB2921916-x64.msu"
 set "URL2=https://download.microsoft.com/download/c/8/7/c87ae67e-a228-48fb-8f02-b2a9a1238099/Windows6.1-KB3033929-x64.msu"
 
-echo 正在下载补丁...
 if "%KB1_DONE%"=="0" (
     echo 下载 KB2921916...
-    bitsadmin /transfer "KB2921916" /download /priority high "%URL1%" "%CD%\\KB2921916.msu" >nul 2>&1
-    if exist "KB2921916.msu" (
-        echo 安装 KB2921916...
-        wusa "KB2921916.msu" /quiet /norestart
+    bitsadmin /transfer "KB2921916" /download /priority high "%URL1%" "%TEMP%\\KB2921916.msu" >nul 2>&1
+    if exist "%TEMP%\\KB2921916.msu" (
+        wusa "%TEMP%\\KB2921916.msu" /quiet /norestart
     )
 )
 if "%KB2_DONE%"=="0" (
     echo 下载 KB3033929...
-    bitsadmin /transfer "KB3033929" /download /priority high "%URL2%" "%CD%\\KB3033929.msu" >nul 2>&1
-    if exist "KB3033929.msu" (
-        echo 安装 KB3033929...
-        wusa "KB3033929.msu" /quiet /norestart
+    bitsadmin /transfer "KB3033929" /download /priority high "%URL2%" "%TEMP%\\KB3033929.msu" >nul 2>&1
+    if exist "%TEMP%\\KB3033929.msu" (
+        wusa "%TEMP%\\KB3033929.msu" /quiet /norestart
     )
 )
 
