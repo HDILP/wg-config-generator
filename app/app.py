@@ -5,6 +5,7 @@ Left sidebar + right content area. Page-based navigation.
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -55,7 +56,28 @@ class GPServerManager(ctk.CTk):
         self._build_layout()
 
         # Show start page
-        self.show_home()
+        if self._wg_error:
+            self._show_wg_error()
+        else:
+            self.show_home()
+
+    def _show_wg_error(self) -> None:
+        """Show WireGuard install prompt — home page disabled until installed."""
+        frame = ctk.CTkFrame(self._content, corner_radius=0, fg_color="transparent")
+        frame.pack(fill="both", expand=True)
+        ctk.CTkLabel(frame, text="⚠️ WireGuard 未安装",
+                     font=ctk.CTkFont(size=20, weight="bold")).pack(pady=(60, 10))
+        ctk.CTkLabel(frame, text=self._wg_error or "", wraplength=400,
+                     font=ctk.CTkFont(size=13), text_color="gray40").pack(pady=10)
+        installer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "wireguard-installer.exe")
+        if os.path.exists(installer):
+            ctk.CTkButton(frame, text="⚡ 一键安装 WireGuard",
+                          font=ctk.CTkFont(size=14, weight="bold"),
+                          command=lambda: subprocess.Popen([installer], shell=True),
+                          ).pack(pady=12)
+        ctk.CTkButton(frame, text="重启程序", font=ctk.CTkFont(size=13),
+                      command=lambda: os.execl(sys.executable, sys.executable, *sys.argv),
+                      fg_color="gray40").pack()
 
     # ═══════════════════════════════════════════════════════════════
     #  Layout
