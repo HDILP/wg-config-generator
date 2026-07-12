@@ -331,42 +331,43 @@ class _NewProjectDialog(ctk.CTkToplevel):
     def __init__(self, parent: GPServerManager):
         super().__init__(parent)
         self.title("新建服务器")
-        self.geometry("440x440")
+        self.geometry("440x520")
         self.resizable(False, False)
 
         ctk.CTkLabel(self, text="新建服务器项目",
                      font=ctk.CTkFont(size=17, weight="bold"),
                      ).pack(pady=(16, 12))
 
-        fields_frame = ctk.CTkFrame(self, fg_color="transparent")
-        fields_frame.pack(fill="x", padx=20)
+        scroll = ctk.CTkScrollableFrame(self, corner_radius=0,
+                                         fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=20)
 
         self._entries: Dict[str, ctk.CTkEntry | ctk.CTkOptionMenu] = {}
 
         for label, key, default, options in [
             ("项目名称", "name", "", None),
             ("公网 IP", "ip", "", None),
-            ("远程类型", "remote_type", "Sunlogin", ["Sunlogin", "ToDesk", "RustDesk", "Aishu", "Other"]),
+            ("远程类型", "remote_type", "帮我吧", ["帮我吧", "向日葵", "ToDesk", "RustDesk", "Other"]),
             ("远程号码", "remote_id", "", None),
             ("Listen Port", "port", "51820", None),
             ("Server VPN IP", "vpn_ip", "10.66.66.1", None),
             ("Subnet", "subnet", "10.66.66.0/24", None),
         ]:
-            ctk.CTkLabel(fields_frame, text=label,
+            ctk.CTkLabel(scroll, text=label,
                          font=ctk.CTkFont(size=12),
                          anchor="w").pack(fill="x", pady=(8, 2))
             if options:
                 var = ctk.StringVar(value=default)
-                w = ctk.CTkOptionMenu(fields_frame, values=options,
+                w = ctk.CTkOptionMenu(scroll, values=options,
                                        variable=var, font=ctk.CTkFont(size=12))
             else:
-                w = ctk.CTkEntry(fields_frame, font=ctk.CTkFont(size=12))
+                w = ctk.CTkEntry(scroll, font=ctk.CTkFont(size=12))
                 if default:
                     w.insert(0, default)
             w.pack(fill="x", pady=(0, 2))
             self._entries[key] = w
 
-        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         btn_frame.pack(pady=(20, 12))
         ctk.CTkButton(btn_frame, text="取消", width=100,
                        command=self.destroy,

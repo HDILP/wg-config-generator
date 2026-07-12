@@ -32,7 +32,7 @@ class OpsInfoPage(ctk.CTkFrame):
         card.pack(fill="x", padx=24, pady=(0, 12))
 
         fields = [
-            ("远程软件", "remote_type", o.remote_type, ["帮我吧", "向日葵", "ToDesk", "RustDesk", "其它"]),
+            ("远程软件", "remote_type", o.remote_type, ["帮我吧", "向日葵", "ToDesk", "RustDesk", "Other"]),
             ("远程号码", "remote_id", o.remote_id, None),
             ("负责人", "contact", o.contact, None),
             ("密码", "password", o.password, None),
