@@ -193,7 +193,7 @@ class GPServerManager(ctk.CTk):
         self._update_nav("首页")
 
         self._nav_home.configure(fg_color="#EADDFF", text_color="#1C1B1F")
-        page = HomePage(self._content)
+        page = HomePage(self._content, self)
         self._switch_to(page)
         self._sidebar_status.configure(text="")
 
@@ -207,7 +207,7 @@ class GPServerManager(ctk.CTk):
 
         # Simple selection dialog via the content area
         from pages.home_page import HomePage
-        page = HomePage(self._content)
+        page = HomePage(self._content, self)
         self._switch_to(page)
         # The home page already has the list; we just show it
         self.show_home()
@@ -245,7 +245,7 @@ class GPServerManager(ctk.CTk):
         self._nav_section.configure(text="")
         self._set_sidebar_project(False)
         self._update_nav("")
-        page = SettingsPage(self._content)
+        page = SettingsPage(self._content, self)
         self._switch_to(page)
 
     def show_dashboard(self) -> None:
@@ -256,49 +256,49 @@ class GPServerManager(ctk.CTk):
         self._sidebar_status.configure(
             text=self._current_project.settings.name
         )
-        page = DashboardPage(self._content, self._current_project)
+        page = DashboardPage(self._content, self, self._current_project)
         self._switch_to(page)
 
     def show_wireguard(self) -> None:
         if not self._current_project:
             return
         self._current_page = "wireguard"
-        page = WireGuardPage(self._content, self._current_project)
+        page = WireGuardPage(self._content, self, self._current_project)
         self._switch_to(page)
 
     def show_sql(self) -> None:
         if not self._current_project:
             return
         self._current_page = "sql"
-        page = SQLPage(self._content, self._current_project)
+        page = SQLPage(self._content, self, self._current_project)
         self._switch_to(page)
 
     def show_firewall(self) -> None:
         if not self._current_project:
             return
         self._current_page = "firewall"
-        page = FirewallPage(self._content, self._current_project)
+        page = FirewallPage(self._content, self, self._current_project)
         self._switch_to(page)
 
     def show_backup(self) -> None:
         if not self._current_project:
             return
         self._current_page = "backup"
-        page = BackupCenterPage(self._content, self._current_project)
+        page = BackupCenterPage(self._content, self, self._current_project)
         self._switch_to(page)
 
     def show_ops(self) -> None:
         if not self._current_project:
             return
         self._current_page = "ops"
-        page = OpsInfoPage(self._content, self._current_project)
+        page = OpsInfoPage(self._content, self, self._current_project)
         self._switch_to(page)
 
     def show_tools(self) -> None:
         if not self._current_project:
             return
         self._current_page = "tools"
-        page = ToolsPage(self._content, self._current_project)
+        page = ToolsPage(self._content, self, self._current_project)
         self._switch_to(page)
 
     def set_status(self, text: str) -> None:

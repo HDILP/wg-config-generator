@@ -157,7 +157,7 @@ if ($result -eq 1) {{ "True" }} else {{ "False" }}
 # ═════════════════════════════════════════════════════════════════
 
 def _backup_dir(policy: BackupPolicy, timestamp: Optional[datetime] = None) -> Path:
-    """Generate backup path: D:\SQLBackup\YYYY\MM\DD."""
+    """Generate backup path: D:/SQLBackup/YYYY/MM/DD."""
     ts = timestamp or datetime.now()
     return Path(policy.save_path) / str(ts.year) / f"{ts.month:02d}" / f"{ts.day:02d}"
 

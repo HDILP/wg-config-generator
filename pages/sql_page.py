@@ -23,9 +23,9 @@ if TYPE_CHECKING:
 class SQLPage(ctk.CTkFrame):
     """SQL Server configuration page."""
 
-    def __init__(self, master: GPServerManager, project: Project, **kwargs):
+    def __init__(self, master, app: GPServerManager, project: Project, **kwargs):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)
-        self._app = master
+        self._app = app
         self._project = project
         self._build()
 

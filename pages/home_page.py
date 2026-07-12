@@ -16,9 +16,9 @@ if TYPE_CHECKING:
 class HomePage(ctk.CTkFrame):
     """Landing page: New / Open / Settings / Recent projects."""
 
-    def __init__(self, master: GPServerManager, **kwargs):
+    def __init__(self, master, app: GPServerManager, **kwargs):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)
-        self._app = master
+        self._app = app
         self._build()
 
     def _build(self) -> None:
