@@ -11,6 +11,7 @@ import customtkinter as ctk
 from core.project_manager import ProjectManager
 from models.backup import BackupPolicy
 from models.project import Project
+from backup import get_engine, list_engines, probe_engines, EngineStatus
 from services.backup_service import (
     BackupHistoryEntry,
     check_compression_support,
@@ -43,6 +44,10 @@ class BackupCenterPage(ctk.CTkFrame):
         self._loaded_sizes: Dict[str, float] = {}
         self._compression_supported: bool = True
         self._immediate_running = False
+        self._engine_var = ctk.StringVar(value="windows_task")
+        self._engine_info: List[tuple] = []
+        self._plan_exists = False
+        self._mp_buttons: Dict[str, ctk.CTkButton] = {}
         self._build()
 
     def refresh(self) -> None:
@@ -135,6 +140,27 @@ class BackupCenterPage(ctk.CTkFrame):
         ctk.CTkLabel(hrow, text=f"剩余磁盘: {health.remaining_gb}GB" if health.remaining_gb else "",
                      font=ctk.CTkFont(size=11), text_color="#79747E",
                      ).pack(side="right")
+
+        # ═══ Engine selector ═══════════════════════════════════
+        engine_card = ctk.CTkFrame(container, corner_radius=12)
+        engine_card.pack(fill="x", pady=(0, 8))
+
+        ctk.CTkLabel(engine_card, text="备份方式",
+                     font=ctk.CTkFont(size=13, weight="bold"),
+                     ).pack(anchor="w", padx=16, pady=(10, 6))
+
+        self._engine_radio_frame = ctk.CTkFrame(engine_card, fg_color="transparent")
+        self._engine_radio_frame.pack(fill="x", padx=16, pady=(0, 10))
+
+        self._engine_var.trace_add("write", lambda *_: self._on_engine_change())
+        threading.Thread(target=self._probe_engines_worker, args=(instance,),
+                         daemon=True).start()
+
+        self._engine_status_label = ctk.CTkLabel(
+            engine_card, text="检测引擎中…",
+            font=ctk.CTkFont(size=11), text_color="#79747E",
+        )
+        self._engine_status_label.pack(anchor="w", padx=16, pady=(0, 10))
 
         # ═══ Enable toggle ═════════════════════════════════════
         enable_frame = ctk.CTkFrame(container, corner_radius=12)
@@ -252,7 +278,7 @@ class BackupCenterPage(ctk.CTkFrame):
         act = ctk.CTkFrame(container, fg_color="transparent")
         act.pack(fill="x", pady=(12, 8))
 
-        self._back_btn = ctk.CTkButton(
+        ctk.CTkButton(
             act, text="← 返回仪表盘", width=110,
             font=ctk.CTkFont(size=12),
             command=lambda: self._app.show_dashboard(),
@@ -266,6 +292,27 @@ class BackupCenterPage(ctk.CTkFrame):
         )
         self._immediate_btn.pack(side="right", padx=(6, 0))
 
+        # Engine-specific action buttons (right side, before immediate)
+        self._mp_action_frame = ctk.CTkFrame(act, fg_color="transparent")
+        self._mp_action_frame.pack(side="right", padx=(6, 0))
+
+        self._mp_buttons["create"] = ctk.CTkButton(
+            self._mp_action_frame, text="创建", width=70,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="#6750A4", command=self._do_mp_create,
+        )
+        self._mp_buttons["update"] = ctk.CTkButton(
+            self._mp_action_frame, text="更新", width=70,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="#FF9800", command=self._do_mp_update,
+        )
+        self._mp_buttons["delete"] = ctk.CTkButton(
+            self._mp_action_frame, text="删除", width=70,
+            font=ctk.CTkFont(size=12), fg_color="#b33",
+            hover_color="#922", command=self._do_mp_delete,
+        )
+
+        # Save (Windows Task)
         self._save_btn = ctk.CTkButton(
             act, text="💾 一键启用",
             font=ctk.CTkFont(size=13, weight="bold"),
@@ -689,3 +736,159 @@ class BackupCenterPage(ctk.CTkFrame):
                 ctk.CTkLabel(row, text=f.get("modified", "")[5:16],
                              font=ctk.CTkFont(size=10),
                              text_color="#79747E", width=100).pack(side="left")
+
+    # ═══════════════════════════════════════════════════════════════
+    #  Engine management
+    # ═══════════════════════════════════════════════════════════════
+
+    def _probe_engines_worker(self, instance: str) -> None:
+        """Detect available engines and build radio buttons."""
+        results = probe_engines(instance)
+        self._engine_info = results
+
+        self.after(0, lambda: self._render_engine_selector(results))
+
+    def _render_engine_selector(self, results: list) -> None:
+        for w in self._engine_radio_frame.winfo_children():
+            w.destroy()
+
+        first_available = ""
+        for eid, name, err in results:
+            disabled = err is not None
+            rb = ctk.CTkRadioButton(
+                self._engine_radio_frame, text=name,
+                variable=self._engine_var, value=eid,
+                font=ctk.CTkFont(size=13),
+                state="disabled" if disabled else "normal",
+            )
+            rb.pack(side="left", padx=(0, 20))
+            if not disabled and not first_available:
+                first_available = eid
+
+        if first_available:
+            self._engine_var.set(first_available)
+            self._engine_status_label.configure(
+                text="" if not any(e[2] for e in results) else
+                " ⚠ ".join(f"{e[1]}: {e[2]}" for e in results if e[2])
+            )
+        else:
+            self._engine_var.set("windows_task")
+            errors = [f"{e[1]}: {e[2]}" for e in results if e[2]]
+            self._engine_status_label.configure(
+                text="⚠ " + "; ".join(errors),
+                text_color="#E53935",
+            )
+
+        self._on_engine_change()
+
+    def _on_engine_change(self) -> None:
+        """Show/hide buttons based on selected engine."""
+        engine_id = self._engine_var.get()
+        is_mp = engine_id == "maintenance_plan"
+
+        # Show MP buttons or Windows Task save button
+        if is_mp:
+            self._mp_action_frame.pack(side="right", padx=(6, 0))
+            self._save_btn.pack_forget()
+            # Query MP status
+            threading.Thread(target=self._query_mp_status,
+                             daemon=True).start()
+        else:
+            self._mp_action_frame.pack_forget()
+            self._save_btn.pack(side="right", padx=(6, 0))
+
+    def _query_mp_status(self) -> None:
+        instance = self._project.settings.sql.instance
+        engine = get_engine("maintenance_plan")
+        if not engine:
+            return
+        status = engine.query_status(instance)
+        self._plan_exists = status.exists
+        self.after(0, lambda: self._update_mp_buttons(status))
+
+    def _update_mp_buttons(self, status) -> None:
+        exists = status.exists
+        self._mp_buttons["create"].pack_forget()
+        self._mp_buttons["update"].pack_forget()
+        self._mp_buttons["delete"].pack_forget()
+
+        if not exists:
+            self._mp_buttons["create"].pack(side="left", padx=2)
+        else:
+            self._mp_buttons["update"].pack(side="left", padx=2)
+            self._mp_buttons["delete"].pack(side="left", padx=2)
+
+        if exists:
+            self._engine_status_label.configure(
+                text=f"上次运行: {status.last_run or '无'}  "
+                     f"结果: {'成功' if status.last_result == 'success' else '失败' if status.last_result == 'failed' else status.last_result}",
+            )
+
+    # ── MP actions ────────────────────────────────────────────
+
+    def _get_policy_values(self):
+        """Read current form values into a dict."""
+        return {
+            "databases": [db for db, v in self._db_vars.items() if v.get()],
+            "schedule_time": f"{self._hour_entry.get().strip()}:{self._min_entry.get().strip()}",
+            "save_path": self._path_entry.get().strip(),
+            "retention_days": self._retention_entry.get().strip(),
+            "compression": self._comp_var.get(),
+        }
+
+    def _do_mp_create(self) -> None:
+        vals = self._get_policy_values()
+        if not vals["databases"]:
+            messagebox.showwarning("提示", "请至少选择一个数据库")
+            return
+        instance = self._project.settings.sql.instance
+
+        def _work():
+            engine = get_engine("maintenance_plan")
+            if not engine:
+                return
+            result = engine.create_plan(
+                instance, vals["databases"], vals["schedule_time"],
+                vals["save_path"], int(vals["retention_days"]),
+                vals["compression"],
+            )
+            self.after(0, lambda: self._set_status(result))
+            self.after(0, lambda: self._on_engine_change())
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _do_mp_update(self) -> None:
+        vals = self._get_policy_values()
+        if not vals["databases"]:
+            messagebox.showwarning("提示", "请至少选择一个数据库")
+            return
+        instance = self._project.settings.sql.instance
+
+        def _work():
+            engine = get_engine("maintenance_plan")
+            if not engine:
+                return
+            result = engine.update_plan(
+                instance, vals["databases"], vals["schedule_time"],
+                vals["save_path"], int(vals["retention_days"]),
+                vals["compression"],
+            )
+            self.after(0, lambda: self._set_status(result))
+            self.after(0, lambda: self._on_engine_change())
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _do_mp_delete(self) -> None:
+        if not messagebox.askyesno("确认", "确定删除 SQL Server 备份计划？"):
+            return
+        instance = self._project.settings.sql.instance
+
+        def _work():
+            engine = get_engine("maintenance_plan")
+            if not engine:
+                return
+            result = engine.delete_plan(instance)
+            self.after(0, lambda: self._set_status(result))
+            self.after(0, lambda: self._on_engine_change())
+
+        threading.Thread(target=_work, daemon=True).start()

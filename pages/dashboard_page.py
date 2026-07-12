@@ -50,6 +50,7 @@ class DashboardPage(ctk.CTkFrame):
         card.pack(fill="x", pady=(0, 12))
 
         items = [
+            ("备份中心", "ok" if self._project.settings.backup.enabled else "warning"),
             ("WireGuard", "ok" if self._project.server_keypair.public else "unknown"),
             ("SQL Server", "unknown"),
             ("Windows 防火墙", "unknown"),
