@@ -361,35 +361,23 @@ if "%KB1_DONE%"=="1" if "%KB2_DONE%"=="1" (
     exit /b 0
 )
 
-:: 尝试本地补丁文件
+:: 安装补丁文件
 if "%KB1_DONE%"=="0" if exist "%~dp0KB2921916.msu" (
-    echo 安装 KB2921916（本地文件）...
+    echo 安装 KB2921916...
     wusa "%~dp0KB2921916.msu" /quiet /norestart
     set "KB1_DONE=1"
 )
 if "%KB2_DONE%"=="0" if exist "%~dp0KB3033929.msu" (
-    echo 安装 KB3033929（本地文件）...
+    echo 安装 KB3033929...
     wusa "%~dp0KB3033929.msu" /quiet /norestart
     set "KB2_DONE=1"
 )
 
-:: 在线下载（后备）
-set "URL1=https://download.wireguard.com/windows-toolchain/distfiles/Windows6.1-KB2921916-x64.msu"
-set "URL2=https://download.microsoft.com/download/c/8/7/c87ae67e-a228-48fb-8f02-b2a9a1238099/Windows6.1-KB3033929-x64.msu"
-
 if "%KB1_DONE%"=="0" (
-    echo 下载 KB2921916...
-    bitsadmin /transfer "KB2921916" /download /priority high "%URL1%" "%TEMP%\\KB2921916.msu" >nul 2>&1
-    if exist "%TEMP%\\KB2921916.msu" (
-        wusa "%TEMP%\\KB2921916.msu" /quiet /norestart
-    )
+    echo [✗] KB2921916.msu 未找到，请确认文件已放置在当前目录。
 )
 if "%KB2_DONE%"=="0" (
-    echo 下载 KB3033929...
-    bitsadmin /transfer "KB3033929" /download /priority high "%URL2%" "%TEMP%\\KB3033929.msu" >nul 2>&1
-    if exist "%TEMP%\\KB3033929.msu" (
-        wusa "%TEMP%\\KB3033929.msu" /quiet /norestart
-    )
+    echo [✗] KB3033929.msu 未找到，请确认文件已放置在当前目录。
 )
 
 echo.
