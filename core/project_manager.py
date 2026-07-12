@@ -53,6 +53,7 @@ class ProjectManager:
         subnet: str = "10.66.66.0/24",
         remote_type: str = "Sunlogin",
         remote_id: str = "",
+        remote_password: str = "",
     ) -> Project:
         if not name.strip():
             raise ValueError("Project name is required")
@@ -68,7 +69,8 @@ class ProjectManager:
             subnet=subnet.strip(),
             remote=RemoteInfo(type=remote_type, id=remote_id.strip()),
             sql=SqlConfig(),
-            ops=OpsInfo(),
+            ops=OpsInfo(remote_type=remote_type, remote_id=remote_id.strip(),
+                        password=remote_password.strip()),
         )
         project = Project(
             settings=settings,

@@ -335,7 +335,7 @@ class GPServerManager(ctk.CTk):
         if result is None:
             return
 
-        name, ip, port, vpn_ip, subnet, remote_type, remote_id = result
+        name, ip, port, vpn_ip, subnet, remote_type, remote_id, remote_pass = result
         self._sidebar_status.configure(text="Creating project…")
 
         def _create() -> None:
@@ -344,6 +344,7 @@ class GPServerManager(ctk.CTk):
                     name=name, public_ip=ip, listen_port=port,
                     vpn_ip=vpn_ip, subnet=subnet,
                     remote_type=remote_type, remote_id=remote_id,
+                    remote_password=remote_pass,
                 )
                 self.after(0, lambda: self.open_project(project.name))
             except Exception as exc:
@@ -368,7 +369,7 @@ class _NewProjectDialog(ctk.CTkToplevel):
     def __init__(self, parent: GPServerManager):
         super().__init__(parent)
         self.title("新建服务器")
-        self.geometry("440x520")
+        self.geometry("440x560")
         self.resizable(False, False)
 
         ctk.CTkLabel(self, text="新建服务器项目",
@@ -386,6 +387,7 @@ class _NewProjectDialog(ctk.CTkToplevel):
             ("公网 IP", "ip", "", None),
             ("远程类型", "remote_type", "帮我吧", ["帮我吧", "向日葵", "ToDesk", "RustDesk", "Other"]),
             ("远程号码", "remote_id", "", None),
+            ("远程密码", "remote_pass", "", None),
             ("Listen Port", "port", "51820", None),
             ("Server VPN IP", "vpn_ip", "10.66.66.1", None),
             ("Subnet", "subnet", "10.66.66.0/24", None),
@@ -403,6 +405,20 @@ class _NewProjectDialog(ctk.CTkToplevel):
                     w.insert(0, default)
             w.pack(fill="x", pady=(0, 2))
             self._entries[key] = w
+
+        # Remote info row with copy button
+        remote_info_frame = ctk.CTkFrame(scroll, fg_color="transparent")
+        remote_info_frame.pack(fill="x", pady=(4, 0))
+        self._copy_btn = ctk.CTkButton(
+            remote_info_frame, text="📋 复制远程信息", height=28,
+            font=ctk.CTkFont(size=11),
+            command=self._copy_remote,
+        )
+        self._copy_btn.pack(side="right")
+
+        # Mask remote password
+        if "remote_pass" in self._entries:
+            self._entries["remote_pass"].configure(show="•")
 
         btn_frame = ctk.CTkFrame(scroll, fg_color="transparent")
         btn_frame.pack(pady=(20, 12))
@@ -439,8 +455,21 @@ class _NewProjectDialog(ctk.CTkToplevel):
             self._entries["subnet"].get().strip() or "10.66.66.0/24",
             self._entries["remote_type"].get(),
             self._entries["remote_id"].get().strip(),
+            self._entries["remote_pass"].get().strip(),
         )
         self.destroy()
+
+    def _copy_remote(self) -> None:
+        typ = self._entries["remote_type"].get()
+        rid = self._entries["remote_id"].get().strip()
+        pwd = self._entries["remote_pass"].get().strip()
+        parts = [f"[{typ}]", f"ID: {rid}"] if rid else [f"[{typ}]"]
+        if pwd:
+            parts.append(f"PWD: {pwd}")
+        text = " ".join(parts)
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self._copy_btn.configure(text="✓ 已复制")
 
     def result(self):
         return self._result if self._confirmed else None
