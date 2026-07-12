@@ -16,7 +16,7 @@
 
 ## Requirements
 
-- **Windows 7+**（编译产物）或 **Python 3.10+**（源码运行）
+- **Windows 7+**（编译产物）或 **Python 3.8+**（源码运行）
 - [WireGuard](https://www.wireguard.com/install/)（`wg` 需在 `C:\Program Files\WireGuard\` 或 PATH 中）
 - `pip install -r requirements.txt`（源码运行）
 
