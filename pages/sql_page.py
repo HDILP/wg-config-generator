@@ -32,11 +32,20 @@ class SQLPage(ctk.CTkFrame):
         self._build()
 
     def _build(self) -> None:
-        if not self._project:
-            ctk.CTkLabel(self, text="无项目数据", font=ctk.CTkFont(size=14),
-                         text_color="#79747E").pack(pady=40)
-            return
-        s = self._project.settings.sql
+        # Use live SQL info when no project (Server mode)
+        from services.sql_service import get_sql_info, SqlListenMode
+        instance = self._project.settings.sql.instance if self._project else "MSSQLSERVER"
+        try:
+            live = get_sql_info(instance)
+            live_port = live.port
+            live_listen = live.listen_mode.value
+        except Exception:
+            live_port = 65529
+            live_listen = "127.0.0.1"
+
+        s = self._project.settings.sql if self._project else None
+        display_instance = s.instance if s else instance
+        display_port = str(live_port)
 
         ctk.CTkLabel(self, text="SQL Server", font=ctk.CTkFont(size=20, weight="bold"),
                      ).pack(anchor="w", padx=24, pady=(20, 16))
@@ -46,8 +55,8 @@ class SQLPage(ctk.CTkFrame):
         info.pack(fill="x", padx=24, pady=(0, 12))
 
         fields = [
-            ("实例", s.instance),
-            ("端口", str(s.port)),
+            ("实例", display_instance),
+            ("端口", display_port),
         ]
         for label, val in fields:
             row = ctk.CTkFrame(info, fg_color="transparent")
@@ -63,7 +72,7 @@ class SQLPage(ctk.CTkFrame):
         ctk.CTkLabel(port_row, text="端口", font=ctk.CTkFont(size=13),
                      width=60).pack(side="left")
         self._port_entry = ctk.CTkEntry(port_row, font=ctk.CTkFont(size=13), width=100)
-        self._port_entry.insert(0, str(s.port))
+        self._port_entry.insert(0, display_port)
         self._port_entry.pack(side="left", padx=(8, 0))
         ctk.CTkButton(port_row, text="保存", width=60, height=28,
                        font=ctk.CTkFont(size=11),
@@ -76,7 +85,7 @@ class SQLPage(ctk.CTkFrame):
         ctk.CTkLabel(listen_row, text="监听", font=ctk.CTkFont(size=13),
                      width=60).pack(side="left")
 
-        self._listen_var = ctk.StringVar(value=s.listen)
+        self._listen_var = ctk.StringVar(value=s.listen if s else live_listen)
         ctk.CTkRadioButton(listen_row, text="本机 (127.0.0.1)",
                            variable=self._listen_var, value="127.0.0.1",
                            font=ctk.CTkFont(size=12),

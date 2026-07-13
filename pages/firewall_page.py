@@ -26,10 +26,6 @@ class FirewallPage(ctk.CTkFrame):
         self._build()
 
     def _build(self) -> None:
-        if not self._project:
-            ctk.CTkLabel(self, text="无项目数据", font=ctk.CTkFont(size=14),
-                         text_color="#79747E").pack(pady=40)
-            return
         ctk.CTkLabel(self, text="Windows 防火墙", font=ctk.CTkFont(size=20, weight="bold"),
                      ).pack(anchor="w", padx=24, pady=(20, 16))
 
