@@ -52,6 +52,7 @@ def _ps(script: str, timeout: int = 60) -> Tuple[str, str]:
         r = subprocess.run(
             ["powershell", "-NoProfile", "-Command", script],
             capture_output=True, text=True, timeout=timeout,
+            encoding="utf-8", errors="replace",
         )
         return r.stdout.strip(), r.stderr.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
@@ -253,6 +254,7 @@ $lines -join "`n"
             r = subprocess.run(
                 ["sqlcmd", "-S", f".\\{instance}", "-Q", f"SET NOCOUNT ON; {query}"],
                 capture_output=True, text=True, timeout=timeout,
+                encoding="utf-8", errors="replace",
             )
             return r.stdout.strip() or r.stderr.strip()
         except (FileNotFoundError, OSError) as exc:

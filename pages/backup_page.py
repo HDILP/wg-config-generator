@@ -42,6 +42,7 @@ class BackupCenterPage(ctk.CTkFrame):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)
         self._app = app
         self._project = project
+        self._alive = True
         self._loaded_dbs: List[str] = []
         self._loaded_sizes: Dict[str, float] = {}
         self._compression_supported: bool = True
@@ -60,6 +61,7 @@ class BackupCenterPage(ctk.CTkFrame):
         self._build()
 
     def _clear(self) -> None:
+        self._alive = False
         for w in self.winfo_children():
             w.destroy()
 
@@ -365,8 +367,8 @@ class BackupCenterPage(ctk.CTkFrame):
             self._loaded_sizes = sizes
             self.after(0, self._render_db_list)
         except Exception as exc:
-            self.after(0, lambda: self._db_status.configure(
-                text=f"加载失败: {exc}"))
+            self.after(0, lambda e=exc: self._db_status.configure(
+                text=f"加载失败: {e}"))
 
     def _render_db_list(self) -> None:
         policy = self._project.settings.backup
@@ -430,15 +432,20 @@ class BackupCenterPage(ctk.CTkFrame):
             supported = check_compression_support(instance)
             self._compression_supported = supported
             if not supported:
-                self.after(0, lambda: (
-                    self._comp_var.set(False),
-                    self._comp_switch.configure(state="disabled"),
-                    self._comp_note.configure(
-                        text="当前 SQL Server 版本不支持压缩备份",
-                        text_color="#FF9800"),
-                ))
+                self.after(0, lambda: self._on_comp_result(supported))
         except Exception:
             pass
+
+    def _on_comp_result(self, supported: bool) -> None:
+        if not getattr(self, '_alive', False):
+            return
+        if not supported:
+            self._comp_var.set(False)
+            self._comp_switch.configure(state="disabled")
+            self._comp_note.configure(
+                text="当前 SQL Server 版本不支持压缩备份",
+                text_color="#FF9800",
+            )
 
     def _toggle_enable(self) -> None:
         pass  # applied on save
@@ -768,6 +775,8 @@ class BackupCenterPage(ctk.CTkFrame):
         self.after(0, lambda: self._render_engine_selector(results))
 
     def _render_engine_selector(self, results: list) -> None:
+        if not getattr(self, '_alive', False):
+            return
         for w in self._engine_radio_frame.winfo_children():
             w.destroy()
 
