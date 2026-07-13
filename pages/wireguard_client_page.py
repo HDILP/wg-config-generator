@@ -248,10 +248,12 @@ class WireGuardClientPage(ctk.CTkFrame):
         res = dlg.result()
         if res is None:
             return
-        target, is_win7 = res
+        targets, is_win7 = res
         self._set_status("正在生成部署包…")
-        threading.Thread(target=self._generate_deploy,
-                         args=(target, is_win7), daemon=True).start()
+        def _work():
+            for t in targets:
+                self._generate_deploy(t, is_win7)
+        threading.Thread(target=_work, daemon=True).start()
 
     def _generate_deploy(self, target: str, is_win7: bool) -> None:
         """Generate a ZIP for one target (server or client name)."""
@@ -402,29 +404,34 @@ pause
 
 
 class _DeployDialog(ctk.CTkToplevel):
-    """Choose target (server/client) and OS for deploy ZIP."""
+    """Pick targets (multi) + OS. OS applies to ALL selected."""
 
     def __init__(self, parent, project: Project):
         super().__init__(parent)
         self.title(f"生成部署包 — {project.name}")
-        self.geometry("380x260")
+        self.geometry("380x300")
         self.resizable(False, False)
         self.grab_set()
 
-        ctk.CTkLabel(self, text="目标", font=ctk.CTkFont(size=14, weight="bold"),
+        ctk.CTkLabel(self, text="目标（可多选）",
+                     font=ctk.CTkFont(size=14, weight="bold"),
                      ).pack(anchor="w", padx=20, pady=(16, 8))
 
-        self._target = ctk.StringVar(value="server")
-        ctk.CTkRadioButton(self, text="服务器", variable=self._target,
-                           value="server", font=ctk.CTkFont(size=13),
-                           ).pack(anchor="w", padx=20, pady=2)
+        self._target_vars: dict[str, ctk.BooleanVar] = {}
+        tv = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(self, text="服务器", variable=tv,
+                        font=ctk.CTkFont(size=13),
+                        ).pack(anchor="w", padx=20, pady=2)
+        self._target_vars["server"] = tv
         for c in project.clients:
-            ctk.CTkRadioButton(self, text=f"客户端 — {c.name}",
-                               variable=self._target, value=c.name,
-                               font=ctk.CTkFont(size=13),
-                               ).pack(anchor="w", padx=20, pady=2)
+            v = ctk.BooleanVar(value=False)
+            ctk.CTkCheckBox(self, text=f"客户端 — {c.name}", variable=v,
+                            font=ctk.CTkFont(size=13),
+                            ).pack(anchor="w", padx=20, pady=2)
+            self._target_vars[c.name] = v
 
-        ctk.CTkLabel(self, text="目标系统", font=ctk.CTkFont(size=14, weight="bold"),
+        ctk.CTkLabel(self, text="目标系统",
+                     font=ctk.CTkFont(size=14, weight="bold"),
                      ).pack(anchor="w", padx=20, pady=(12, 4))
 
         self._os = ctk.StringVar(value="win10")
@@ -449,8 +456,13 @@ class _DeployDialog(ctk.CTkToplevel):
         self._confirmed = False
 
     def _confirm(self) -> None:
+        selected = [k for k, v in self._target_vars.items() if v.get()]
+        if not selected:
+            from tkinter import messagebox
+            messagebox.showwarning("提示", "请至少选择一个目标", parent=self)
+            return
         self._confirmed = True
-        self._result = (self._target.get(), self._os.get() == "win7")
+        self._result = (selected, self._os.get() == "win7")
         self.destroy()
 
     def result(self):
