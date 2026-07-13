@@ -38,7 +38,7 @@ class BackupCenterPage(ctk.CTkFrame):
     """Backup Center — one page, multiple sub-views (quick, history, restore, browser)."""
     WORKSPACE = WorkspaceMode.SERVER
 
-    def __init__(self, master, app: GPServerManager, project: Project, **kwargs):
+    def __init__(self, master, app: GPServerManager, project: Optional[Project] = None, **kwargs):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)
         self._app = app
         self._project = project
@@ -53,6 +53,8 @@ class BackupCenterPage(ctk.CTkFrame):
         self._build()
 
     def refresh(self) -> None:
+        if not self._project:
+            return
         self._project = ProjectManager.load(self._project.name)
         self._clear()
         self._build()
@@ -62,6 +64,10 @@ class BackupCenterPage(ctk.CTkFrame):
             w.destroy()
 
     def _build(self) -> None:
+        if not self._project:
+            ctk.CTkLabel(self, text="无项目数据", font=ctk.CTkFont(size=14),
+                         text_color="#79747E").pack(pady=40)
+            return
         policy = self._project.settings.backup
 
         # ── Header ────────────────────────────────────────────

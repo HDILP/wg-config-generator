@@ -254,7 +254,7 @@ class GPServerManager(ctk.CTk):
             return
         self._current_page = "show_sql"
         self._update_nav("show_sql")
-        self._switch_to(SQLPage, self)
+        self._switch_to(SQLPage, self, None)
 
     def show_wireguard(self) -> None:
         self._current_page = "show_wireguard"
@@ -269,14 +269,14 @@ class GPServerManager(ctk.CTk):
             return
         self._current_page = "show_firewall"
         self._update_nav("show_firewall")
-        self._switch_to(FirewallPage, self)
+        self._switch_to(FirewallPage, self, None)
 
     def show_backup(self) -> None:
         if self._workspace != WorkspaceMode.SERVER:
             return
         self._current_page = "show_backup"
         self._update_nav("show_backup")
-        self._switch_to(BackupCenterPage, self)
+        self._switch_to(BackupCenterPage, self, None)
 
     def show_services(self) -> None:
         if self._workspace != WorkspaceMode.SERVER:

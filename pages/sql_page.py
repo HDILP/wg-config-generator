@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import threading
 from tkinter import messagebox
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import customtkinter as ctk
 
@@ -25,13 +25,17 @@ class SQLPage(ctk.CTkFrame):
     """SQL Server configuration page."""
     WORKSPACE = WorkspaceMode.SERVER
 
-    def __init__(self, master, app: GPServerManager, project: Project, **kwargs):
+    def __init__(self, master, app: GPServerManager, project: Optional[Project] = None, **kwargs):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)
         self._app = app
         self._project = project
         self._build()
 
     def _build(self) -> None:
+        if not self._project:
+            ctk.CTkLabel(self, text="无项目数据", font=ctk.CTkFont(size=14),
+                         text_color="#79747E").pack(pady=40)
+            return
         s = self._project.settings.sql
 
         ctk.CTkLabel(self, text="SQL Server", font=ctk.CTkFont(size=20, weight="bold"),
