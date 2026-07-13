@@ -180,6 +180,22 @@ def get_sql_info(instance: str = "MSSQLSERVER") -> SqlInstanceInfo:
         except ValueError:
             pass
 
+    # Fallback: try sqlcmd for port when registry fails
+    if info.port == 65529:
+        try:
+            import subprocess as _sp
+            r = _sp.run(["sqlcmd", "-S", f".\\{instance}", "-E", "-Q",
+                         "SET NOCOUNT ON; SELECT local_tcp_port FROM sys.dm_exec_connections WHERE session_id = @@SPID"],
+                        capture_output=True, text=True, timeout=10,
+                        encoding="utf-8", errors="replace")
+            for line in r.stdout.splitlines():
+                line = line.strip()
+                if line.isdigit() and 1 <= int(line) <= 65535:
+                    info.port = int(line)
+                    break
+        except Exception:
+            pass
+
     # TCP/IP enabled
     if use_ps:
         tcp_en = _powershell(

@@ -12,6 +12,8 @@
 | 模块 | 文件 | 职责 |
 |------|------|------|
 | **app/** | `app.py` | GPServerManager 主窗口（侧边栏 + 页面路由） |
+| | `workspace.py` | WorkspaceMode(SERVER/CLIENT/BOTH) + nav items per mode |
+| | `launcher.py` | 启动模式选择对话框 |
 | | `theme.py` | Material You 主题（浅色/深色/系统） |
 | **backup/** | `engine.py` | BackupEngine ABC（所有备份引擎的接口） |
 | | `windows_task.py` | Windows Task Scheduler 引擎 |
@@ -22,28 +24,44 @@
 | | `templates.py` | WireGuard 配置模板 |
 | | `qrcode_gen.py` | 二维码生成 |
 | **models/** | `project.py` | Project / ProjectSettings / OpsInfo / SqlConfig / RemoteInfo |
-| | `client.py` | ClientEntry + ClientStatus |
+| | `app_settings.py` | AppSettings — 持久化 settings.json（workspace/theme） |
+| | `workspace.py` | WorkspaceMode 枚举（无 GUI 依赖，防循环导入） |
+| | `client.py` | ClientEntry + ClientStatus（含 remote_type/id/password） |
 | | `keypair.py` | KeyPair dataclass |
 | | `backup.py` | BackupPolicy |
-| **pages/** | `home_page.py` | 首页（新建/打开/最近项目） |
-| | `dashboard_page.py` | 仪表盘（状态 + 安全评分） |
+| **pages/** | `server_dashboard_page.py` | Server 仪表盘（实时状态） |
+| | `client_dashboard_page.py` | Client 仪表盘（项目概览） |
+| | `projects_page.py` | 项目列表（Client Mode） |
+| | `customers_page.py` | 客户管理（含新建客户弹窗 + 复制远程信息） |
+| | `wireguard_server_page.py` | WireGuard 状态 + 打开官方客户端（Server Mode） |
+| | `wireguard_client_page.py` | WireGuard 配置生成 + 部署包（Client Mode） |
 | | `backup_page.py` | 备份中心（极速/历史/恢复/浏览器） |
-| | `wireguard_page.py` | WireGuard 管理 |
 | | `sql_page.py` | SQL Server 配置 |
 | | `firewall_page.py` | 防火墙管理 |
+| | `system_info_page.py` | 系统信息 + 服务管理 |
 | | `ops_page.py` | 运维信息编辑 |
-| | `tools_page.py` | 工具箱（Ping/Traceroute/公网IP/服务重启） |
-| | `settings_page.py` | 全局设置 |
+| | `settings_page.py` | 全局设置（含工作模式切换） |
 | **services/** | `backup_service.py` | 立即备份/历史/清理/恢复/文件浏览 |
-| | `sql_service.py` | SQL Server 注册表/服务（PowerShell + cmd 双路径） |
+| | `sql_service.py` | SQL Server 注册表/服务（支持 SQL 2008~2022） |
 | | `firewall_service.py` | netsh advfirewall 封装 |
-| | `system_service.py` | Ping/Traceroute/公网IP/系统信息 |
+| | `system_service.py` | 系统信息（CPU/内存/磁盘/网络） |
 | | `wireguard_service.py` | wg show 解析/状态检测 |
 | **utils/** | `file_ops.py` | ensure_dir / write_json / read_json / open_folder |
 | **widgets/** | `__init__.py` | 可复用组件（SidebarButton/StatusIndicator/SecurityScore/Card） |
 | **main.py** | | 入口 |
 
 ## Architecture
+
+### Workspace 模式
+
+```
+启动 → WorkspaceLauncher → Server Mode / Client Mode
+  Server Mode: 服务器本机操作（SQL/WireGuard/防火墙/备份/服务/系统信息）
+  Client Mode: 运维电脑操作（项目/客户/WireGuard配置/部署包/运维信息）
+  
+每页声明 WORKSPACE = SERVER / CLIENT / BOTH
+app.py 根据 mode 自动切换侧边栏 + 过滤页面路由
+```
 
 ### 模块分层
 

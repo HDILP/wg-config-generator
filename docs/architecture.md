@@ -3,8 +3,17 @@
 ## Overview
 
 ```
+启动 → WorkspaceLauncher → Server Mode / Client Mode
+  Server Mode: 服务器本机操作（SQL/WireGuard/防火墙/备份/服务/系统信息）
+  Client Mode: 运维电脑操作（项目/客户/WireGuard配置/部署包/运维信息）
+
+每页声明 WORKSPACE = SERVER / CLIENT / BOTH
+app.py 根据 mode 自动切换侧边栏 + 过滤页面路由
+```
+
+```
 main.py
-  └─ app/          ← 主窗口 + 侧边栏 + 页面路由
+  └─ app/          ← 主窗口 + 侧边栏 + 页面路由 + workspace 选择
        ├─ backup/  ← 可插拔备份引擎（ABC 接口）
        ├─ core/    ← 业务逻辑
        ├─ models/  ← 数据模型
@@ -40,17 +49,20 @@ main.py
 ### pages/ — UI Pages
 Each page is a `CTkFrame` subclass constructed via `app._switch_to(PageClass, self, *args)`.
 
-| Page | File | Key Sections |
-|------|------|-------------|
-| Home | `home_page.py` | New/Open/Recent |
-| Dashboard | `dashboard_page.py` | Status + Security Score |
-| Backup Center | `backup_page.py` | Quick Mode / History / Restore / Browser |
-| WireGuard | `wireguard_page.py` | Server info + Client CRUD |
-| SQL Server | `sql_page.py` | Port / Listen mode / Restart |
-| Firewall | `firewall_page.py` | Service toggles + Custom port |
-| Ops Info | `ops_page.py` | Editable ops form |
-| Tools | `tools_page.py` | Ping / Trace / Public IP / Restart |
-| Settings | `settings_page.py` | Theme / About |
+| Page | File | Mode | Key Sections |
+|------|------|------|-------------|
+| Server Dashboard | `server_dashboard_page.py` | SERVER | CPU/内存/磁盘 + 服务状态 |
+| Client Dashboard | `client_dashboard_page.py` | CLIENT | 项目/客户统计 |
+| Projects | `projects_page.py` | CLIENT | 项目列表/新建/打开 |
+| Customers | `customers_page.py` | CLIENT | 客户列表 + 新建（含远程信息 + 可选 WG） |
+| WireGuard | `wireguard_server_page.py` | SERVER | 安装状态/打开官方客户端 |
+| WireGuard Config | `wireguard_client_page.py` | CLIENT | 配置生成/客户端CRUD/部署包 |
+| SQL Server | `sql_page.py` | SERVER | Port / Listen mode / Restart |
+| Firewall | `firewall_page.py` | SERVER | Service toggles + Custom port |
+| Backup Center | `backup_page.py` | SERVER | Quick Mode / History / Restore / Browser |
+| System Info | `system_info_page.py` | SERVER | 系统信息 / 服务管理 |
+| Ops Info | `ops_page.py` | CLIENT | Editable ops form |
+| Settings | `settings_page.py` | BOTH | Workspace mode / Theme / About |
 
 ### services/ — Backend Services
 - `backup_service.py`: Immediate backup, history, file browser, health, cleanup.

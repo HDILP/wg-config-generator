@@ -11,8 +11,15 @@
 
 ### 服务器项目管理
 - **Project = 一台服务器** — 所有配置集中在一个目录，不散落
-- **新建 / 打开 / 最近项目** — 即开即用
-- **安全评分** — 自动检查 WireGuard、SQL、防火墙、RDP、SMB
+- **Workspace 工作模式** — Server Mode（服务器本机操作）和 Client Mode（运维电脑操作）
+- **Client Dashboard** — 项目统计、最近项目列表
+
+### WireGuard
+- **Client Mode** — 配置生成、客户端 CRUD、VPN IP 自动分配
+- **Server Mode** — 仅显示安装状态 + 打开官方 WireGuard 客户端
+- **一键部署包** — 生成 Deploy/Server/ 和 Deploy/Client/ ZIP，含配置文件、WireGuard.exe、README
+- **二维码导出** — client.conf 一键转二维码
+- **Win7 支持** — 部署包附带 KB2921916 补丁 + install_win7.bat 自动安装脚本
 
 ### 备份中心（Backup Center）
 - **双引擎架构** — Windows 计划任务 / SQL Server Agent Job 可切换
@@ -66,34 +73,41 @@
 ```bash
 # 源码运行
 python main.py
-
-# 或运行 CI 编译的 GPServerManager.exe
 ```
 
-### 新建服务器
-1. 首页 → **新建服务器**
-2. 填写项目名称、公网 IP、远程类型等
-3. 点击创建 → 自动生成密钥
-4. 进入仪表盘
+启动后选择工作模式：
 
-### 配置自动备份
-1. 打开项目 → 侧边栏 **备份中心**
+- **Server Mode** — 在服务器上运行，管理 SQL/WireGuard/防火墙/备份/系统
+- **Client Mode** — 在运维电脑上运行，管理项目/客户/配置生成/部署包
+
+### 新建服务器（Client Mode）
+1. 启动 Client Mode → 点击 **新建项目**
+2. 填写项目名称、公网 IP、远程信息等
+3. 点击创建 → 自动生成密钥
+4. 在仪表盘查看项目详情
+
+### 配置自动备份（Server Mode）
+1. 启动 Server Mode → 侧边栏 **自动备份**
 2. 选择备份方式（Windows 计划任务 / SQL Server 计划）
 3. 勾选数据库、设置时间/路径/保留天数
 4. 点击 **一键启用** 或 **创建**
 
-### 管理 WireGuard
-1. 打开项目 → 侧边栏 **WireGuard**
-2. 查看服务器信息、客户端列表
-3. 新增/删除客户端，重新生成密钥
+### 生成部署包（Client Mode）
+1. 打开项目 → 侧边栏 **WireGuard 配置**
+2. 添加客户端
+3. 点击 **生成部署包**
+4. 选择目标（服务器/客户端）和目标系统（Win10+/Win7）
+5. 生成 ZIP，复制到目标机安装
 
 ---
 
 ## Architecture
 
 ```
+启动 → WorkspaceLauncher → Server Mode / Client Mode
+
 main.py
-  └─ app/          ← GPServerManager 主窗口 + 侧边栏 + 页面路由
+  └─ app/          ← GPServerManager + workspace 选择 + 页面路由
        ├─ backup/  ← 可插拔备份引擎（ABC 接口）
        │    ├─ engine.py            ← BackupEngine 抽象基类
        │    ├─ windows_task.py      ← Windows Task Scheduler
