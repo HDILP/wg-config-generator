@@ -120,6 +120,8 @@ class SQLPage(ctk.CTkFrame):
         self._status.configure(text=text)
 
     def _save_port(self) -> None:
+        if not self._project:
+            return
         try:
             port = int(self._port_entry.get().strip())
             if not (1 <= port <= 65535):
@@ -133,11 +135,15 @@ class SQLPage(ctk.CTkFrame):
         threading.Thread(target=self._port_worker, args=(port,), daemon=True).start()
 
     def _port_worker(self, port: int) -> None:
+        if not self._project:
+            return
         result = set_sql_port(port, self._project.settings.sql.instance)
         self.after(0, lambda: self._set_status(
             "OK" if "OK" in result or "n/a" in result else f"✗ {result}"))
 
     def _save_all(self) -> None:
+        if not self._project:
+            return
         listen = self._listen_var.get()
         self._project.settings.sql.listen = listen
         try:
@@ -154,14 +160,20 @@ class SQLPage(ctk.CTkFrame):
         threading.Thread(target=self._save_worker, args=(mode,), daemon=True).start()
 
     def _save_worker(self, mode: SqlListenMode) -> None:
+        if not self._project:
+            return
         result = set_sql_listen_mode(mode, self._project.settings.sql.instance)
         self.after(0, lambda: self._set_status(
             "✓ 配置已保存" if "OK" in result or "n/a" in result else f"✗ {result}"))
 
     def _restart_sql(self) -> None:
+        if not self._project:
+            return
         self._set_status("Restarting SQL Server…")
         threading.Thread(target=self._restart_worker, daemon=True).start()
 
     def _restart_worker(self) -> None:
+        if not self._project:
+            return
         result = restart_sql(self._project.settings.sql.instance)
         self.after(0, lambda: self._set_status(result))
