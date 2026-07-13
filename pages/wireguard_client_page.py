@@ -422,7 +422,7 @@ class _DeployDialog(ctk.CTkToplevel):
         self._rows: list[tuple[str, ctk.BooleanVar, ctk.StringVar]] = []
 
         # Server row
-        row = ctk.CTkFrame(scroll, fg_color="transparent")
+        row = ctk.CTkFrame(scroll)
         row.pack(fill="x", pady=3)
         sv = ctk.BooleanVar(value=True)
         osv = ctk.StringVar(value="win10")
@@ -436,7 +436,7 @@ class _DeployDialog(ctk.CTkToplevel):
         self._rows.append(("server", sv, osv))
 
         for c in project.clients:
-            row = ctk.CTkFrame(scroll, fg_color="transparent")
+            row = ctk.CTkFrame(scroll)
             row.pack(fill="x", pady=3)
             cv = ctk.BooleanVar(value=False)
             cosv = ctk.StringVar(value="win10")
