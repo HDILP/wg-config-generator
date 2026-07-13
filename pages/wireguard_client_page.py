@@ -433,9 +433,9 @@ class _DeployDialog(ctk.CTkToplevel):
             lbl.pack(side="left", padx=(4, 0), fill="x", expand=True)
             lbl.bind("<Button-1>", lambda e, v=var: v.set(not v.get()))
             cb.bind("<Button-1>", lambda e, v=var: v.set(not v.get()))
-            ctk.CTkRadioButton(row, text="", variable=osv, value="win10",
-                               ).pack(side="right", padx=(0, 18))
-            ctk.CTkRadioButton(row, text="", variable=osv, value="win7",
+            ctk.CTkRadioButton(row, text="Win10", variable=osv, value="win10",
+                               ).pack(side="right", padx=(0, 4))
+            ctk.CTkRadioButton(row, text="Win7", variable=osv, value="win7",
                                ).pack(side="right", padx=(0, 18))
             return label, var, osv
 
