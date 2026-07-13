@@ -159,13 +159,15 @@ class GPServerManager(ctk.CTk):
         for item in global_items:
             self._add_nav_button(item)
 
-        # Project section (only when project open in Client mode)
-        has_project = self._current_project is not None if is_client else True
+        # Show project section: Client mode needs a project; Server always has items
+        has_project = (self._current_project is not None
+                       ) if is_client else not is_client
         if has_project:
             ctk.CTkLabel(self._sidebar, text="", height=2,
                          fg_color="#CAC4D0").pack(fill="x", padx=16, pady=(8, 8))
             ctk.CTkLabel(
-                self._sidebar, text=f"📌  {self._current_project.name}",
+                self._sidebar,
+                text=f"📌  {self._current_project.name}" if self._current_project else "",
                 font=ctk.CTkFont(size=12, weight="bold"),
                 text_color="#6750A4", anchor="w",
             ).pack(fill="x", padx=16, pady=(0, 4))
