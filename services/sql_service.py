@@ -86,9 +86,8 @@ def _service_state(name: str) -> str:
 
 
 def _reg_path(instance: str) -> str:
-    """Resolve SQL Server instance registry key via Instance Names\SQL."""
-    # Query Instance Names\SQL to get the actual registry subkey
-    # e.g. MSSQL10.MSSQLSERVER for SQL 2008, MSSQL15.MSSQLSERVER for SQL 2019
+    """Resolve SQL Server instance registry key."""
+    # 1. Instance Names\SQL
     raw = _cmd([
         "reg", "query", 
         "HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\Instance Names\\SQL",
@@ -101,7 +100,19 @@ def _reg_path(instance: str) -> str:
                 f"HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\"
                 f"{subkey}\\MSSQLServer\\SuperSocketNetLib\\Tcp\\IPAll"
             )
-    # Fallback: old path (works for named instances on some versions)
+    # 2. Search for subkey containing instance name
+    raw = _cmd([
+        "reg", "query",
+        "HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server",
+        "/s", "/f", instance, "/k",
+    ])
+    for line in raw.splitlines():
+        line = line.strip()
+        if instance in line and "MSSQLServer" in line:
+            return (
+                f"{line}\\SuperSocketNetLib\\Tcp\\IPAll"
+            )
+    # 3. Hardcoded fallback
     return (
         f"HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\"
         f"MSSQL{instance}\\MSSQLServer\\SuperSocketNetLib\\Tcp\\IPAll"
