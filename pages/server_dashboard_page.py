@@ -142,7 +142,7 @@ class ServerDashboardPage(ctk.CTkFrame):
 
             # Service statuses
             svc_map = {
-                "sql": _svc_status("MSSQL$MSSQLSERVER"),
+                "sql": _svc_status("MSSQLSERVER"),
                 "wireguard": "ok" if not check_wg_available() else "error",
                 "firewall": _fw_status(),
                 "backup": _backup_status(),
