@@ -86,10 +86,40 @@ def _service_state(name: str) -> str:
 
 
 def _reg_path(instance: str) -> str:
+    """Resolve SQL Server instance registry key via Instance Names\SQL."""
+    # Query Instance Names\SQL to get the actual registry subkey
+    # e.g. MSSQL10.MSSQLSERVER for SQL 2008, MSSQL15.MSSQLSERVER for SQL 2019
+    raw = _cmd([
+        "reg", "query", 
+        "HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\Instance Names\\SQL",
+        "/v", instance,
+    ])
+    for line in raw.splitlines():
+        if instance in line and "REG_SZ" in line:
+            subkey = line.rsplit(None, 1)[-1].strip()
+            return (
+                f"HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\"
+                f"{subkey}\\MSSQLServer\\SuperSocketNetLib\\Tcp\\IPAll"
+            )
+    # Fallback: old path (works for named instances on some versions)
     return (
         f"HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\"
         f"MSSQL{instance}\\MSSQLServer\\SuperSocketNetLib\\Tcp\\IPAll"
     )
+
+
+def _instance_service(instance: str) -> str:
+    """Return the Windows service name for a SQL instance.
+    Default instance → 'MSSQLSERVER', named → 'MSSQL$Instance'.
+    """
+    return "MSSQLSERVER" if instance.upper() == "MSSQLSERVER" else f"MSSQL${instance}"
+
+
+def _agent_service(instance: str) -> str:
+    """Return the Windows service name for SQL Agent.
+    Default instance → 'SQLSERVERAGENT', named → 'SQLSERVERAGENT$Instance'.
+    """
+    return "SQLSERVERAGENT" if instance.upper() == "MSSQLSERVER" else f"SQLSERVERAGENT${instance}"
 
 
 def get_sql_info(instance: str = "MSSQLSERVER") -> SqlInstanceInfo:
@@ -103,16 +133,17 @@ def get_sql_info(instance: str = "MSSQLSERVER") -> SqlInstanceInfo:
         return info
 
     # Service state
+    svc_name = _instance_service(instance)
     if use_ps:
         svc = _powershell(
-            f'Get-Service -Name "MSSQL${instance}" -ErrorAction SilentlyContinue '
+            f'Get-Service -Name "{svc_name}" -ErrorAction SilentlyContinue '
             f"| Select-Object -Property Status"
         )
         info.state = "Running" if "Running" in svc else (
             "Stopped" if "Stopped" in svc else "Unknown"
         )
     else:
-        info.state = _service_state(f"MSSQL${instance}")
+        info.state = _service_state(_instance_service(instance))
 
     rp = _reg_path(instance)
 
@@ -238,7 +269,7 @@ def restart_sql(instance: str = "MSSQLSERVER") -> str:
     if sys.platform != "win32":
         return "n/a (non-Windows)"
 
-    svc_name = f"MSSQL${instance}"
+    svc_name = _instance_service(instance)
 
     if _has_powershell():
         return _powershell(

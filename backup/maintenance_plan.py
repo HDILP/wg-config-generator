@@ -111,10 +111,11 @@ def _check_agent_status(instance: str) -> Optional[str]:
     if sys.platform != "win32":
         return None  # mock
 
+    svc = "SQLSERVERAGENT" if instance.upper() == "MSSQLSERVER" else f"SQLSERVERAGENT${instance}"
     # Service check via sc.exe
     try:
         r = subprocess.run(
-            ["sc", "query", f"SQLSERVERAGENT${instance}"],
+            ["sc", "query", svc],
             capture_output=True, text=True, timeout=10,
         )
         output = r.stdout.upper()
@@ -134,9 +135,10 @@ def _check_agent_disabled(instance: str) -> Optional[str]:
     if sys.platform != "win32":
         return None
 
+    svc = "SQLSERVERAGENT" if instance.upper() == "MSSQLSERVER" else f"SQLSERVERAGENT${instance}"
     try:
         r = subprocess.run(
-            ["sc", "qc", f"SQLSERVERAGENT${instance}"],
+            ["sc", "qc", svc],
             capture_output=True, text=True, timeout=10,
         )
         for line in r.stdout.splitlines():
