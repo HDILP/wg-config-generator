@@ -428,6 +428,7 @@ class _DeployDialog(ctk.CTkToplevel):
         osv = ctk.StringVar(value="win10")
         ctk.CTkCheckBox(row, text="服务器", variable=sv,
                         font=ctk.CTkFont(size=13),
+                        text_color=("#1C1B1F", "#E6E1E5"),
                         ).pack(side="left")
         ctk.CTkRadioButton(row, text="", variable=osv, value="win10",
                            ).pack(side="right", padx=(0, 18))
@@ -442,6 +443,7 @@ class _DeployDialog(ctk.CTkToplevel):
             cosv = ctk.StringVar(value="win10")
             ctk.CTkCheckBox(row, text=c.name, variable=cv,
                             font=ctk.CTkFont(size=13),
+                            text_color=("#1C1B1F", "#E6E1E5"),
                             ).pack(side="left")
             ctk.CTkRadioButton(row, text="", variable=cosv, value="win10",
                                ).pack(side="right", padx=(0, 18))
