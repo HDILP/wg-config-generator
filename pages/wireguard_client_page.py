@@ -421,35 +421,27 @@ class _DeployDialog(ctk.CTkToplevel):
 
         self._rows: list[tuple[str, ctk.BooleanVar, ctk.StringVar]] = []
 
-        # Server row
-        row = ctk.CTkFrame(scroll)
-        row.pack(fill="x", pady=3)
-        sv = ctk.BooleanVar(value=True)
-        osv = ctk.StringVar(value="win10")
-        ctk.CTkCheckBox(row, text="服务器", variable=sv,
-                        font=ctk.CTkFont(size=13),
-                        text_color=("#1C1B1F", "#E6E1E5"),
-                        ).pack(side="left")
-        ctk.CTkRadioButton(row, text="", variable=osv, value="win10",
-                           ).pack(side="right", padx=(0, 18))
-        ctk.CTkRadioButton(row, text="", variable=osv, value="win7",
-                           ).pack(side="right", padx=(0, 18))
-        self._rows.append(("server", sv, osv))
-
-        for c in project.clients:
+        def _deploy_row(label: str, default_checked: bool):
             row = ctk.CTkFrame(scroll)
             row.pack(fill="x", pady=3)
-            cv = ctk.BooleanVar(value=False)
-            cosv = ctk.StringVar(value="win10")
-            ctk.CTkCheckBox(row, text=c.name, variable=cv,
-                            font=ctk.CTkFont(size=13),
-                            text_color=("#1C1B1F", "#E6E1E5"),
-                            ).pack(side="left")
-            ctk.CTkRadioButton(row, text="", variable=cosv, value="win10",
+            var = ctk.BooleanVar(value=default_checked)
+            osv = ctk.StringVar(value="win10")
+            cb = ctk.CTkCheckBox(row, text="", variable=var)
+            cb.pack(side="left")
+            lbl = ctk.CTkLabel(row, text=label, font=ctk.CTkFont(size=13),
+                               text_color=("#1C1B1F", "#E6E1E5"))
+            lbl.pack(side="left", padx=(4, 0), fill="x", expand=True)
+            lbl.bind("<Button-1>", lambda e, v=var: v.set(not v.get()))
+            cb.bind("<Button-1>", lambda e, v=var: v.set(not v.get()))
+            ctk.CTkRadioButton(row, text="", variable=osv, value="win10",
                                ).pack(side="right", padx=(0, 18))
-            ctk.CTkRadioButton(row, text="", variable=cosv, value="win7",
+            ctk.CTkRadioButton(row, text="", variable=osv, value="win7",
                                ).pack(side="right", padx=(0, 18))
-            self._rows.append((c.name, cv, cosv))
+            return label, var, osv
+
+        self._rows.append(_deploy_row("服务器", True))
+        for c in project.clients:
+            self._rows.append(_deploy_row(c.name, False))
 
         btn_f = ctk.CTkFrame(self, fg_color="transparent")
         btn_f.pack(fill="x", padx=20, pady=(12, 12))
