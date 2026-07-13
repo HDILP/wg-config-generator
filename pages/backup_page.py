@@ -65,9 +65,20 @@ class BackupCenterPage(ctk.CTkFrame):
 
     def _build(self) -> None:
         if not self._project:
-            ctk.CTkLabel(self, text="无项目数据", font=ctk.CTkFont(size=14),
-                         text_color="#79747E").pack(pady=40)
-            return
+            from types import SimpleNamespace
+            from models.backup import BackupPolicy
+            self._project = SimpleNamespace(
+                name="",
+                dir=Path("Projects/_server"),
+                clients_dir=Path("Projects/_server/clients"),
+                settings=SimpleNamespace(
+                    backup=BackupPolicy(),
+                    sql=SimpleNamespace(instance="MSSQLSERVER"),
+                    name="Server",
+                ),
+                server_keypair=SimpleNamespace(public=""),
+                clients=[],
+            )
         policy = self._project.settings.backup
 
         # ── Header ────────────────────────────────────────────
