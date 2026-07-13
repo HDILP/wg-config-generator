@@ -426,13 +426,9 @@ class _DeployDialog(ctk.CTkToplevel):
             row.pack(fill="x", pady=3)
             var = ctk.BooleanVar(value=default_checked)
             osv = ctk.StringVar(value="win10")
-            cb = ctk.CTkCheckBox(row, text="", variable=var)
-            cb.pack(side="left")
-            lbl = ctk.CTkLabel(row, text=label, font=ctk.CTkFont(size=13),
-                               text_color=("#1C1B1F", "#E6E1E5"))
-            lbl.pack(side="left", padx=(4, 0), fill="x", expand=True)
-            lbl.bind("<Button-1>", lambda e, v=var: v.set(not v.get()))
-            cb.bind("<Button-1>", lambda e, v=var: v.set(not v.get()))
+            ctk.CTkCheckBox(row, text=label, variable=var,
+                            font=ctk.CTkFont(size=13),
+                            ).pack(side="left")
             ctk.CTkRadioButton(row, text="Win10", variable=osv, value="win10",
                                ).pack(side="right", padx=(0, 4))
             ctk.CTkRadioButton(row, text="Win7", variable=osv, value="win7",
