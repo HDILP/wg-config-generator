@@ -29,12 +29,12 @@ def _svc_status(name: str) -> str:
 
 
 def _fw_status() -> str:
-    """Check if Windows Firewall is on."""
+    """Check if Windows Firewall is on via current profile state."""
     import subprocess, sys
     if sys.platform != "win32":
         return "unknown"
     try:
-        r = subprocess.run(["netsh", "advfirewall", "show", "currentprofile"],
+        r = subprocess.run(["netsh", "advfirewall", "show", "currentprofile", "state"],
                            capture_output=True, text=True, timeout=10)
         return "ok" if "ON" in r.stdout.upper() else "error"
     except Exception:
