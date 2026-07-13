@@ -232,10 +232,7 @@ class GPServerManager(ctk.CTk):
         self._sidebar_status.configure(text=text)
 
     def _nav_to_home(self) -> None:
-        if self._workspace == WorkspaceMode.SERVER:
-            self.show_server_dashboard()
-        else:
-            self.show_dashboard()
+        self.show_dashboard()
 
     # ═══════════════════════════════════════════════════════════════
     #  Server Mode navigation
