@@ -419,17 +419,6 @@ class _DeployDialog(ctk.CTkToplevel):
         scroll = ctk.CTkScrollableFrame(self, height=180, corner_radius=8)
         scroll.pack(fill="x", padx=20)
 
-        # Header row
-        hdr = ctk.CTkFrame(scroll, fg_color="transparent")
-        hdr.pack(fill="x")
-        ctk.CTkLabel(hdr, text="", width=30).pack(side="left")
-        ctk.CTkLabel(hdr, text="目标", font=ctk.CTkFont(size=11, weight="bold"),
-                     anchor="w", width=120).pack(side="left")
-        ctk.CTkLabel(hdr, text="Win10/11+", font=ctk.CTkFont(size=10),
-                     width=80).pack(side="right")
-        ctk.CTkLabel(hdr, text="Win7/2012", font=ctk.CTkFont(size=10),
-                     width=80).pack(side="right")
-
         self._rows: list[tuple[str, ctk.BooleanVar, ctk.StringVar]] = []
 
         # Server row
@@ -437,9 +426,9 @@ class _DeployDialog(ctk.CTkToplevel):
         row.pack(fill="x", pady=3)
         sv = ctk.BooleanVar(value=True)
         osv = ctk.StringVar(value="win10")
-        ctk.CTkCheckBox(row, text="", variable=sv).pack(side="left")
-        ctk.CTkLabel(row, text="服务器", font=ctk.CTkFont(size=13),
-                     anchor="w", width=120).pack(side="left")
+        ctk.CTkCheckBox(row, text="服务器", variable=sv,
+                        font=ctk.CTkFont(size=13),
+                        ).pack(side="left")
         ctk.CTkRadioButton(row, text="", variable=osv, value="win10",
                            ).pack(side="right", padx=(0, 18))
         ctk.CTkRadioButton(row, text="", variable=osv, value="win7",
@@ -451,9 +440,9 @@ class _DeployDialog(ctk.CTkToplevel):
             row.pack(fill="x", pady=3)
             cv = ctk.BooleanVar(value=False)
             cosv = ctk.StringVar(value="win10")
-            ctk.CTkCheckBox(row, text="", variable=cv).pack(side="left")
-            ctk.CTkLabel(row, text=c.name, font=ctk.CTkFont(size=13),
-                         anchor="w", width=120).pack(side="left")
+            ctk.CTkCheckBox(row, text=c.name, variable=cv,
+                            font=ctk.CTkFont(size=13),
+                            ).pack(side="left")
             ctk.CTkRadioButton(row, text="", variable=cosv, value="win10",
                                ).pack(side="right", padx=(0, 18))
             ctk.CTkRadioButton(row, text="", variable=cosv, value="win7",
