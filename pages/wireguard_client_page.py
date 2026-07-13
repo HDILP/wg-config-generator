@@ -408,7 +408,7 @@ class _DeployDialog(ctk.CTkToplevel):
     def __init__(self, parent, project: Project):
         super().__init__(parent)
         self.title(f"生成部署包 — {project.name}")
-        self.geometry("400x340")
+        self.geometry("440x400")
         self.resizable(False, False)
         self.grab_set()
 
@@ -429,9 +429,9 @@ class _DeployDialog(ctk.CTkToplevel):
             ctk.CTkCheckBox(row, text=label, variable=var,
                             font=ctk.CTkFont(size=13),
                             ).pack(side="left")
-            ctk.CTkRadioButton(row, text="Win10", variable=osv, value="win10",
+            ctk.CTkRadioButton(row, text="Win10/11/Server2016+", variable=osv, value="win10",
                                ).pack(side="right", padx=(0, 4))
-            ctk.CTkRadioButton(row, text="Win7", variable=osv, value="win7",
+            ctk.CTkRadioButton(row, text="Win7/Server2012", variable=osv, value="win7",
                                ).pack(side="right", padx=(0, 18))
             return label, var, osv
 
