@@ -248,11 +248,10 @@ class WireGuardClientPage(ctk.CTkFrame):
         res = dlg.result()
         if res is None:
             return
-        targets, is_win7 = res
         self._set_status("正在生成部署包…")
         def _work():
-            for t in targets:
-                self._generate_deploy(t, is_win7)
+            for target, is_win7 in res:
+                self._generate_deploy(target, is_win7)
         threading.Thread(target=_work, daemon=True).start()
 
     def _generate_deploy(self, target: str, is_win7: bool) -> None:
@@ -404,45 +403,62 @@ pause
 
 
 class _DeployDialog(ctk.CTkToplevel):
-    """Pick targets (multi) + OS. OS applies to ALL selected."""
+    """Pick targets + per-target OS. Each row: ☑ + name + OS radios."""
 
     def __init__(self, parent, project: Project):
         super().__init__(parent)
         self.title(f"生成部署包 — {project.name}")
-        self.geometry("380x300")
+        self.geometry("400x340")
         self.resizable(False, False)
         self.grab_set()
 
-        ctk.CTkLabel(self, text="目标（可多选）",
+        ctk.CTkLabel(self, text="目标系统",
                      font=ctk.CTkFont(size=14, weight="bold"),
                      ).pack(anchor="w", padx=20, pady=(16, 8))
 
-        self._target_vars: dict[str, ctk.BooleanVar] = {}
-        tv = ctk.BooleanVar(value=True)
-        ctk.CTkCheckBox(self, text="服务器", variable=tv,
-                        font=ctk.CTkFont(size=13),
-                        ).pack(anchor="w", padx=20, pady=2)
-        self._target_vars["server"] = tv
+        scroll = ctk.CTkScrollableFrame(self, height=180, corner_radius=8)
+        scroll.pack(fill="x", padx=20)
+
+        # Header row
+        hdr = ctk.CTkFrame(scroll, fg_color="transparent")
+        hdr.pack(fill="x")
+        ctk.CTkLabel(hdr, text="", width=30).pack(side="left")
+        ctk.CTkLabel(hdr, text="目标", font=ctk.CTkFont(size=11, weight="bold"),
+                     anchor="w", width=120).pack(side="left")
+        ctk.CTkLabel(hdr, text="Win10/11+", font=ctk.CTkFont(size=10),
+                     width=80).pack(side="right")
+        ctk.CTkLabel(hdr, text="Win7/2012", font=ctk.CTkFont(size=10),
+                     width=80).pack(side="right")
+
+        self._rows: list[tuple[str, ctk.BooleanVar, ctk.StringVar]] = []
+
+        # Server row
+        row = ctk.CTkFrame(scroll, fg_color="transparent")
+        row.pack(fill="x", pady=3)
+        sv = ctk.BooleanVar(value=True)
+        osv = ctk.StringVar(value="win10")
+        ctk.CTkCheckBox(row, text="", variable=sv).pack(side="left")
+        ctk.CTkLabel(row, text="服务器", font=ctk.CTkFont(size=13),
+                     anchor="w", width=120).pack(side="left")
+        ctk.CTkRadioButton(row, text="", variable=osv, value="win10",
+                           ).pack(side="right", padx=(0, 18))
+        ctk.CTkRadioButton(row, text="", variable=osv, value="win7",
+                           ).pack(side="right", padx=(0, 18))
+        self._rows.append(("server", sv, osv))
+
         for c in project.clients:
-            v = ctk.BooleanVar(value=False)
-            ctk.CTkCheckBox(self, text=f"客户端 — {c.name}", variable=v,
-                            font=ctk.CTkFont(size=13),
-                            ).pack(anchor="w", padx=20, pady=2)
-            self._target_vars[c.name] = v
-
-        ctk.CTkLabel(self, text="目标系统",
-                     font=ctk.CTkFont(size=14, weight="bold"),
-                     ).pack(anchor="w", padx=20, pady=(12, 4))
-
-        self._os = ctk.StringVar(value="win10")
-        ctk.CTkRadioButton(self, text="Win10/11 / Server 2016+",
-                           variable=self._os, value="win10",
-                           font=ctk.CTkFont(size=13),
-                           ).pack(anchor="w", padx=20, pady=2)
-        ctk.CTkRadioButton(self, text="Win7 / Server 2012",
-                           variable=self._os, value="win7",
-                           font=ctk.CTkFont(size=13),
-                           ).pack(anchor="w", padx=20, pady=2)
+            row = ctk.CTkFrame(scroll, fg_color="transparent")
+            row.pack(fill="x", pady=3)
+            cv = ctk.BooleanVar(value=False)
+            cosv = ctk.StringVar(value="win10")
+            ctk.CTkCheckBox(row, text="", variable=cv).pack(side="left")
+            ctk.CTkLabel(row, text=c.name, font=ctk.CTkFont(size=13),
+                         anchor="w", width=120).pack(side="left")
+            ctk.CTkRadioButton(row, text="", variable=cosv, value="win10",
+                               ).pack(side="right", padx=(0, 18))
+            ctk.CTkRadioButton(row, text="", variable=cosv, value="win7",
+                               ).pack(side="right", padx=(0, 18))
+            self._rows.append((c.name, cv, cosv))
 
         btn_f = ctk.CTkFrame(self, fg_color="transparent")
         btn_f.pack(fill="x", padx=20, pady=(12, 12))
@@ -456,13 +472,14 @@ class _DeployDialog(ctk.CTkToplevel):
         self._confirmed = False
 
     def _confirm(self) -> None:
-        selected = [k for k, v in self._target_vars.items() if v.get()]
+        selected = [(name, osv.get() == "win7")
+                    for name, cv, osv in self._rows if cv.get()]
         if not selected:
             from tkinter import messagebox
             messagebox.showwarning("提示", "请至少选择一个目标", parent=self)
             return
         self._confirmed = True
-        self._result = (selected, self._os.get() == "win7")
+        self._result = selected
         self.destroy()
 
     def result(self):
