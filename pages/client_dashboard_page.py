@@ -1,12 +1,13 @@
 """Client Dashboard — project overview for Client Mode."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import customtkinter as ctk
 
 from app.workspace import WorkspaceMode
 from core.project_manager import ProjectManager
+from models.project import Project
 from widgets import CardFrame
 
 if TYPE_CHECKING:
@@ -17,12 +18,46 @@ class ClientDashboardPage(ctk.CTkFrame):
     """Client mode dashboard: project stats, recent activity."""
     WORKSPACE = WorkspaceMode.CLIENT
 
-    def __init__(self, master, app: GPServerManager, **kwargs):
+    def __init__(self, master, app: GPServerManager,
+                 project: Optional[Project] = None, **kwargs):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)
         self._app = app
+        self._project = project
         self._build()
 
     def _build(self) -> None:
+        p = self._project
+
+        if p:
+            # Project-specific dashboard
+            ctk.CTkLabel(
+                self, text=p.name,
+                font=ctk.CTkFont(size=22, weight="bold"),
+            ).pack(anchor="w", padx=24, pady=(20, 4))
+            ctk.CTkLabel(
+                self, text=f"{p.settings.public_ip or '未设置IP'}  |  {len(p.clients)} 个客户端",
+                font=ctk.CTkFont(size=13),
+                text_color="#79747E",
+            ).pack(anchor="w", padx=24, pady=(0, 16))
+
+            info = CardFrame(self, title="服务器信息")
+            info.pack(fill="x", padx=24, pady=(0, 12))
+
+            for label, val in [
+                ("VPN 地址", p.settings.vpn_ip),
+                ("子网", p.settings.subnet),
+                ("监听端口", str(p.settings.listen_port)),
+                ("远程方式", p.settings.ops.remote_type or p.settings.remote.type),
+            ]:
+                row = ctk.CTkFrame(info, fg_color="transparent")
+                row.pack(fill="x", padx=16, pady=3)
+                ctk.CTkLabel(row, text=label, font=ctk.CTkFont(size=12),
+                             text_color="#79747E", width=80).pack(side="left")
+                ctk.CTkLabel(row, text=val, font=ctk.CTkFont(size=12),
+                             anchor="w").pack(side="left", fill="x", expand=True)
+            return
+
+        # Overview dashboard (no project open)
         ctk.CTkLabel(
             self, text="Client Dashboard",
             font=ctk.CTkFont(size=22, weight="bold"),
@@ -33,16 +68,13 @@ class ClientDashboardPage(ctk.CTkFrame):
             len(ProjectManager.load(n).clients) for n in proj[-50:]
         )
 
-        # Stat cards row
         stat_frame = ctk.CTkFrame(self, fg_color="transparent")
         stat_frame.pack(fill="x", padx=24, pady=(0, 16))
 
-        stats = [
+        for label, val in [
             ("📁 项目", len(proj)),
             ("👥 客户端", total_clients),
-            ("🖥 服务器", len(proj)),
-        ]
-        for label, val in stats:
+        ]:
             card = ctk.CTkFrame(stat_frame, corner_radius=12, width=160, height=80)
             card.pack(side="left", padx=(0, 12))
             card.pack_propagate(False)
@@ -52,7 +84,6 @@ class ClientDashboardPage(ctk.CTkFrame):
             ctk.CTkLabel(card, text=label, font=ctk.CTkFont(size=12),
                          text_color="#79747E").pack()
 
-        # Project list
         card = CardFrame(self, title="最近项目")
         card.pack(fill="x", padx=24, pady=(0, 12))
 

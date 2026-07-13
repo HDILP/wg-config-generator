@@ -118,6 +118,7 @@ class GPServerManager(ctk.CTk):
         for w in self._sidebar.winfo_children():
             w.destroy()
         self._sidebar_buttons.clear()
+        is_client = self._workspace == WorkspaceMode.CLIENT
 
         # Brand + workspace badge
         mode_label = {
@@ -139,33 +140,37 @@ class GPServerManager(ctk.CTk):
         ctk.CTkLabel(self._sidebar, text="", height=2,
                      fg_color="#CAC4D0").pack(fill="x", padx=16, pady=(0, 8))
 
-        # Nav items from workspace
-        items = nav_for_mode(self._workspace)
-        for item in items:
-            btn = ctk.CTkButton(
-                self._sidebar, text=f"{item.icon}  {item.label}",
-                font=ctk.CTkFont(size=13),
-                fg_color="transparent", text_color="#49454F",
-                hover_color="#F3EDF7", anchor="w",
-                corner_radius=8, height=30,
-                command=lambda pn=item.page_name: self._nav_to(pn),
-            )
-            btn.pack(fill="x", padx=12, pady=1)
-            self._sidebar_buttons[item.page_name] = btn
+        # Global nav (always visible)
+        global_items = []
+        project_items = []
+        for item in nav_for_mode(self._workspace):
+            if is_client and item.page_name in ("show_projects",):
+                global_items.append(item)
+            elif not is_client and item.page_name == "show_dashboard":
+                global_items.append(item)
+            else:
+                project_items.append(item)
+        # Settings is always global
+        settings_item = next((i for i in project_items if i.page_name == "show_settings"), None)
+        if settings_item:
+            project_items.remove(settings_item)
+            global_items.append(settings_item)
 
-        # Separator
-        ctk.CTkLabel(self._sidebar, text="", height=2,
-                     fg_color="#CAC4D0").pack(fill="x", padx=16, pady=(8, 8))
+        for item in global_items:
+            self._add_nav_button(item)
 
-        # Settings (always at bottom of nav section)
-        ctk.CTkButton(
-            self._sidebar, text="⚙  设置",
-            font=ctk.CTkFont(size=12),
-            fg_color="transparent", text_color="#49454F",
-            hover_color="#F3EDF7", anchor="w",
-            corner_radius=8, height=30,
-            command=self.show_settings,
-        ).pack(fill="x", padx=12, pady=1)
+        # Project section (only when project open)
+        has_project = self._current_project is not None and is_client
+        if has_project:
+            ctk.CTkLabel(self._sidebar, text="", height=2,
+                         fg_color="#CAC4D0").pack(fill="x", padx=16, pady=(8, 8))
+            ctk.CTkLabel(
+                self._sidebar, text=f"📌  {self._current_project.name}",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color="#6750A4", anchor="w",
+            ).pack(fill="x", padx=16, pady=(0, 4))
+            for item in project_items:
+                self._add_nav_button(item)
 
         # Status bar at bottom
         self._sidebar_status = ctk.CTkLabel(
@@ -173,6 +178,18 @@ class GPServerManager(ctk.CTk):
             text_color="#79747E",
         )
         self._sidebar_status.pack(side="bottom", pady=(0, 12))
+
+    def _add_nav_button(self, item: NavItem) -> None:
+        btn = ctk.CTkButton(
+            self._sidebar, text=f"{item.icon}  {item.label}",
+            font=ctk.CTkFont(size=13),
+            fg_color="transparent", text_color="#49454F",
+            hover_color="#F3EDF7", anchor="w",
+            corner_radius=8, height=30,
+            command=lambda pn=item.page_name: self._nav_to(pn),
+        )
+        btn.pack(fill="x", padx=12, pady=1)
+        self._sidebar_buttons[item.page_name] = btn
 
     def _nav_to(self, page_name: str) -> None:
         handler = getattr(self, page_name, None)
@@ -218,7 +235,7 @@ class GPServerManager(ctk.CTk):
         if self._workspace == WorkspaceMode.SERVER:
             self.show_server_dashboard()
         else:
-            self.show_projects()
+            self.show_dashboard()
 
     # ═══════════════════════════════════════════════════════════════
     #  Server Mode navigation
@@ -231,7 +248,7 @@ class GPServerManager(ctk.CTk):
             self._switch_to(ServerDashboardPage, self)
             self._sidebar_status.configure(text="")
         else:
-            self._switch_to(ClientDashboardPage, self)
+            self._switch_to(ClientDashboardPage, self, self._current_project)
 
     def show_sql(self) -> None:
         if self._workspace != WorkspaceMode.SERVER:
@@ -283,7 +300,6 @@ class GPServerManager(ctk.CTk):
     def show_projects(self) -> None:
         if self._workspace != WorkspaceMode.CLIENT:
             return
-        self._current_project = None
         self._current_page = "show_projects"
         self._update_nav("show_projects")
         self._switch_to(ProjectsPage, self)
@@ -310,7 +326,6 @@ class GPServerManager(ctk.CTk):
     # ═══════════════════════════════════════════════════════════════
 
     def show_settings(self) -> None:
-        self._current_project = None
         self._current_page = "show_settings"
         self._update_nav("")
         self._switch_to(SettingsPage, self, self._settings, self._workspace)
@@ -324,6 +339,7 @@ class GPServerManager(ctk.CTk):
             project = ProjectManager.load(name)
             self._current_project = project
             self._sidebar_status.configure(text=project.settings.name)
+            self._build_sidebar()
             self.show_dashboard()
         except Exception as exc:
             messagebox.showerror("错误", f"无法打开项目: {exc}")
@@ -371,6 +387,7 @@ class _NewProjectDialog(ctk.CTkToplevel):
         self.title("新建服务器")
         self.geometry("440x560")
         self.resizable(False, False)
+        self.grab_set()
 
         ctk.CTkLabel(self, text="新建服务器项目",
                      font=ctk.CTkFont(size=17, weight="bold"),
@@ -405,16 +422,6 @@ class _NewProjectDialog(ctk.CTkToplevel):
                     w.insert(0, default)
             w.pack(fill="x", pady=(0, 2))
             self._entries[key] = w
-
-        # Remote info row with copy button
-        remote_info_frame = ctk.CTkFrame(scroll, fg_color="transparent")
-        remote_info_frame.pack(fill="x", pady=(4, 0))
-        self._copy_btn = ctk.CTkButton(
-            remote_info_frame, text="📋 复制远程信息", height=28,
-            font=ctk.CTkFont(size=11),
-            command=self._copy_remote,
-        )
-        self._copy_btn.pack(side="right")
 
         # Mask remote password
         if "remote_pass" in self._entries:
@@ -458,18 +465,6 @@ class _NewProjectDialog(ctk.CTkToplevel):
             self._entries["remote_pass"].get().strip(),
         )
         self.destroy()
-
-    def _copy_remote(self) -> None:
-        typ = self._entries["remote_type"].get()
-        rid = self._entries["remote_id"].get().strip()
-        pwd = self._entries["remote_pass"].get().strip()
-        parts = [f"[{typ}]", f"ID: {rid}"] if rid else [f"[{typ}]"]
-        if pwd:
-            parts.append(f"PWD: {pwd}")
-        text = " ".join(parts)
-        self.clipboard_clear()
-        self.clipboard_append(text)
-        self._copy_btn.configure(text="✓ 已复制")
 
     def result(self):
         return self._result if self._confirmed else None

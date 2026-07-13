@@ -61,10 +61,18 @@ class OpsInfoPage(ctk.CTkFrame):
                 entry = ctk.CTkEntry(row, font=ctk.CTkFont(size=13))
                 entry.insert(0, default or "")
                 if key == "password":
-                    entry.configure(show="*")
+                    entry.configure(show="•")
                 self._entries[key] = entry
 
             self._entries[key].pack(side="left", fill="x", expand=True, padx=(8, 0))
+
+            # Copy button for remote_id and password
+            if key in ("remote_id", "password"):
+                ctk.CTkButton(
+                    row, text="📋", width=28, height=24,
+                    font=ctk.CTkFont(size=10),
+                    command=lambda k=key: self._copy_field(k),
+                ).pack(side="left", padx=(4, 0))
 
         # Actions
         act = ctk.CTkFrame(self, fg_color="transparent")
@@ -83,6 +91,12 @@ class OpsInfoPage(ctk.CTkFrame):
         self._status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
                                      text_color="#79747E")
         self._status.pack(pady=(8, 4))
+
+    def _copy_field(self, key: str) -> None:
+        val = self._entries[key].get() if isinstance(self._entries[key], ctk.CTkEntry) else ""
+        self.clipboard_clear()
+        self.clipboard_append(val)
+        self._set_status(f"✓ 已复制 {key}")
 
     def _set_status(self, text: str) -> None:
         self._status.configure(text=text)
