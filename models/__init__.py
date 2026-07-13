@@ -10,6 +10,7 @@ from models.project import (
     SqlConfig,
     OpsInfo,
 )
+from models.workspace import WorkspaceMode
 
 __all__ = [
     "AppSettings",

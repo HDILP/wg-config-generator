@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from app.workspace import WorkspaceMode
+from models.workspace import WorkspaceMode
 
 SETTINGS_PATH = Path("settings.json")
 

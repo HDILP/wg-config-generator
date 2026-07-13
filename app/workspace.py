@@ -5,11 +5,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional
 
-
-class WorkspaceMode(str, Enum):
-    SERVER = "server"
-    CLIENT = "client"
-    BOTH = "both"  # for pages that work in both modes (e.g. Settings)
+from models.workspace import WorkspaceMode
 
 
 @dataclass
