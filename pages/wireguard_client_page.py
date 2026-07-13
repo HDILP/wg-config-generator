@@ -408,7 +408,7 @@ class _DeployDialog(ctk.CTkToplevel):
     def __init__(self, parent, project: Project):
         super().__init__(parent)
         self.title(f"生成部署包 — {project.name}")
-        self.geometry("440x400")
+        self.geometry("640x360")
         self.resizable(False, False)
         self.grab_set()
 
