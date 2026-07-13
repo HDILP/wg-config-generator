@@ -90,12 +90,11 @@ class ServerDashboardPage(ctk.CTkFrame):
     def _refresh_worker(self) -> None:
         try:
             info = get_system_info()
-            self.after(0, lambda: self._sys_rows["CPU"].configure(
-                text=f"{info.cpu_percent}%"))
-            self.after(0, lambda: self._sys_rows["内存"].configure(
-                text=f"{info.memory_percent}%"))
-            self.after(0, lambda: self._sys_rows["磁盘"].configure(
-                text=f"{info.disk_percent}%"))
+            def _set(k, v):
+                self._sys_rows[k].configure(text=f"{v}%" if v else "N/A")
+            self.after(0, lambda: _set("CPU", info.cpu_percent))
+            self.after(0, lambda: _set("内存", info.memory_percent))
+            self.after(0, lambda: _set("磁盘", info.disk_percent))
             self.after(0, lambda: self._set_status("✓ 已刷新"))
         except Exception as exc:
             self.after(0, lambda: self._set_status(f"✗ {exc}"))
