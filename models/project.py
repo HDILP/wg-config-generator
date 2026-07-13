@@ -140,6 +140,9 @@ class Project:
                     "note": c.note,
                     "created_at": c.created_at,
                     "allowed_ips": c.allowed_ips,
+                    "remote_type": c.remote_type,
+                    "remote_id": c.remote_id,
+                    "remote_password": c.remote_password,
                 }
                 for c in self.clients
             ],
@@ -203,6 +206,9 @@ class Project:
                 note=c.get("note", ""),
                 created_at=c.get("created_at", ""),
                 allowed_ips=c.get("allowed_ips", ""),
+                remote_type=c.get("remote_type", ""),
+                remote_id=c.get("remote_id", ""),
+                remote_password=c.get("remote_password", ""),
             ))
         return cls(
             settings=settings,

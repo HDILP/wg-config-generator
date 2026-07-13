@@ -135,22 +135,11 @@ class WireGuardClientPage(ctk.CTkFrame):
                        command=self._add_client,
                        ).pack(side="right")
 
-        # Target OS + deploy button
-        os_frame = ctk.CTkFrame(self, fg_color="transparent")
-        os_frame.pack(fill="x", padx=24, pady=(8, 0))
-        self._os_var = ctk.StringVar(value="win10")
-        ctk.CTkRadioButton(os_frame, text="Win10/11", variable=self._os_var,
-                           value="win10", font=ctk.CTkFont(size=11),
-                           ).pack(side="left", padx=(0, 16))
-        ctk.CTkRadioButton(os_frame, text="Win7", variable=self._os_var,
-                           value="win7", font=ctk.CTkFont(size=11),
-                           ).pack(side="left")
-
-        ctk.CTkButton(os_frame, text="📦 生成部署包", height=32,
+        ctk.CTkButton(self, text="📦 生成部署包", height=32,
                        font=ctk.CTkFont(size=12),
                        fg_color="#6750A4",
-                       command=self._generate_deploy,
-                       ).pack(side="right")
+                       command=self._open_deploy_dialog,
+                       ).pack(anchor="w", padx=24, pady=(8, 0))
 
         self._status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
                                      text_color="#79747E")
@@ -236,90 +225,117 @@ class WireGuardClientPage(ctk.CTkFrame):
         except Exception as exc:
             self._set_status(f"✗ {exc}")
 
-    def _generate_deploy(self) -> None:
-        """One-click deploy package: Deploy/<name>/Server/ + Client/."""
+    def _export_qr(self, name: str) -> None:
+        try:
+            cfg = ProjectManager.export_client_config(self._project, name)
+            path = self._project.dir / "clients" / name / "qrcode.png"
+            if path.exists():
+                open_folder(path.parent)
+                self._set_status(f"✓ QR code for {name}")
+            else:
+                from core.qrcode_gen import generate_qr_code
+                generate_qr_code(cfg, path)
+                open_folder(path.parent)
+                self._set_status(f"✓ QR code generated for {name}")
+        except Exception as exc:
+            self._set_status(f"✗ {exc}")
+
+    def _open_deploy_dialog(self) -> None:
+        if not self._project:
+            return
+        dlg = _DeployDialog(self, self._project)
+        self.wait_window(dlg)
+        res = dlg.result()
+        if res is None:
+            return
+        target, is_win7 = res
+        self._set_status("正在生成部署包…")
+        threading.Thread(target=self._generate_deploy,
+                         args=(target, is_win7), daemon=True).start()
+
+    def _generate_deploy(self, target: str, is_win7: bool) -> None:
+        """Generate a ZIP for one target (server or client name)."""
         from pathlib import Path
-        import shutil
-        import platform
+        import shutil, zipfile, tempfile
 
         p = self._project
         if not p:
             return
-        is_win7 = hasattr(self, '_os_var') and self._os_var.get() == "win7"
-        deploy_dir = Path("Deploy") / p.name
-        server_dir = ensure_dir(deploy_dir / "Server")
-        client_base = ensure_dir(deploy_dir / "Client")
 
-        # Write server.conf
-        write_text(server_dir / "server.conf",
-                   ProjectManager.export_server_conf(p))
+        tmp = Path(tempfile.mkdtemp())
+        os_label = "win7" if is_win7 else "win10"
 
-        # Copy WireGuard installer
-        installer_src = Path(__file__).resolve().parent.parent / "wireguard-installer.exe"
-        if installer_src.exists():
-            shutil.copy2(installer_src, server_dir / "WireGuard.exe")
-
-        if is_win7:
-            _write_win7_batch(server_dir)
-            # Copy KB patches if available
-            kbs_dir = Path(__file__).resolve().parent.parent / "assets" / "kbs"
-            if kbs_dir.exists():
-                for f in kbs_dir.iterdir():
-                    if f.suffix in (".msu", ".exe"):
-                        shutil.copy2(f, server_dir)
-                        for c in p.clients:
-                            shutil.copy2(f, client_base / c.name)
-
-        # Server README
-        write_text(server_dir / "README_Server.txt",
-                   f"""GP Server Manager — 部署包
-===========================
-项目: {p.name}
-公网 IP: {p.settings.public_ip}
-VPN 地址: {p.settings.vpn_ip}
-监听端口: {p.settings.listen_port}
-目标系统: {"Windows 7" if is_win7 else "Windows 10/11"}
-
-服务器部署步骤:
-1. {"运行 install_win7.bat（自动安装补丁）" if is_win7 else "安装 WireGuard（如已安装可跳过）"}
-2. 打开 WireGuard → 导入 server.conf
-3. 激活隧道
-4. 设置为 Tunnel Service（可选）
-
-生成时间: {__import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M")}
-""")
-
-        # Per-client files
-        for c in p.clients:
-            c_out = ensure_dir(client_base / c.name)
-            cfg = ProjectManager.export_client_config(p, c.name)
-            write_text(c_out / "client.conf", cfg)
+        if target == "server":
+            folder = tmp / "Server"
+            folder.mkdir()
+            write_text(folder / "server.conf", ProjectManager.export_server_conf(p))
+            installer_src = Path(__file__).resolve().parent.parent / "wireguard-installer.exe"
             if installer_src.exists():
-                shutil.copy2(installer_src, c_out / "WireGuard.exe")
+                shutil.copy2(installer_src, folder / "WireGuard.exe")
             if is_win7:
-                _write_win7_batch(c_out)
-            write_text(c_out / "README_Client.txt",
-                       f"""{c.name}
-====================
-VPN IP: {c.vpn_ip}
-服务器: {p.settings.public_ip}:{p.settings.listen_port}
+                _write_win7_batch(folder)
+                kbs_dir = Path(__file__).resolve().parent.parent / "assets" / "kbs"
+                if kbs_dir.exists():
+                    for f in kbs_dir.iterdir():
+                        if f.suffix == ".msu":
+                            shutil.copy2(f, folder)
+            write_text(folder / "README.txt",
+                       f"""Server: {p.name}
+IP: {p.settings.public_ip}
+VPN: {p.settings.vpn_ip}
+Port: {p.settings.listen_port}
 
-客户端部署步骤:
-1. 安装 WireGuard（如已安装可跳过）
-2. 双击 client.conf 或打开 WireGuard → 导入
-3. 激活
-
-服务器公钥: {p.server_keypair.public}
+1. {"install_win7.bat → restart" if is_win7 else "Install WireGuard"}
+2. Import server.conf
+3. Activate
 """)
-            # QR code
+            zip_name = f"{p.name}_Server_{os_label}.zip"
+        else:
+            client = next((c for c in p.clients if c.name == target), None)
+            if not client:
+                return
+            folder = tmp / "Client"
+            folder.mkdir()
+            cfg = ProjectManager.export_client_config(p, client.name)
+            write_text(folder / "client.conf", cfg)
+            installer_src = Path(__file__).resolve().parent.parent / "wireguard-installer.exe"
+            if installer_src.exists():
+                shutil.copy2(installer_src, folder / "WireGuard.exe")
+            if is_win7:
+                _write_win7_batch(folder)
+                kbs_dir = Path(__file__).resolve().parent.parent / "assets" / "kbs"
+                if kbs_dir.exists():
+                    for f in kbs_dir.iterdir():
+                        if f.suffix == ".msu":
+                            shutil.copy2(f, folder)
             try:
                 from core.qrcode_gen import generate_qr_code
-                generate_qr_code(cfg, c_out / "qrcode.png")
+                generate_qr_code(cfg, folder / "qrcode.png")
             except ImportError:
                 pass
+            write_text(folder / "README.txt",
+                       f"""{client.name}
+VPN: {client.vpn_ip}
+Server: {p.settings.public_ip}:{p.settings.listen_port}
 
-        open_folder(deploy_dir)
-        self._set_status(f"✓ 部署包已生成: {deploy_dir}")
+1. {"install_win7.bat → restart" if is_win7 else "Install WireGuard"}
+2. Import client.conf
+3. Activate
+""")
+            zip_name = f"{p.name}_{client.name}_{os_label}.zip"
+
+        deploy_dir = Path("Deploy")
+        deploy_dir.mkdir(exist_ok=True)
+        zip_path = deploy_dir / zip_name
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for f in folder.rglob("*"):
+                zf.write(f, f.relative_to(tmp))
+
+        shutil.rmtree(tmp, ignore_errors=True)
+
+        self.after(0, lambda: open_folder(deploy_dir))
+        self.after(0, lambda: self._set_status(f"✓ {zip_name}"))
+
 
 
 def _write_win7_batch(target_dir) -> None:
@@ -383,6 +399,63 @@ echo 请重启计算机后再安装 WireGuard。
 echo.
 pause
 """)
+
+
+class _DeployDialog(ctk.CTkToplevel):
+    """Choose target (server/client) and OS for deploy ZIP."""
+
+    def __init__(self, parent, project: Project):
+        super().__init__(parent)
+        self.title(f"生成部署包 — {project.name}")
+        self.geometry("380x260")
+        self.resizable(False, False)
+        self.grab_set()
+
+        ctk.CTkLabel(self, text="目标", font=ctk.CTkFont(size=14, weight="bold"),
+                     ).pack(anchor="w", padx=20, pady=(16, 8))
+
+        self._target = ctk.StringVar(value="server")
+        ctk.CTkRadioButton(self, text="服务器", variable=self._target,
+                           value="server", font=ctk.CTkFont(size=13),
+                           ).pack(anchor="w", padx=20, pady=2)
+        for c in project.clients:
+            ctk.CTkRadioButton(self, text=f"客户端 — {c.name}",
+                               variable=self._target, value=c.name,
+                               font=ctk.CTkFont(size=13),
+                               ).pack(anchor="w", padx=20, pady=2)
+
+        ctk.CTkLabel(self, text="目标系统", font=ctk.CTkFont(size=14, weight="bold"),
+                     ).pack(anchor="w", padx=20, pady=(12, 4))
+
+        self._os = ctk.StringVar(value="win10")
+        ctk.CTkRadioButton(self, text="Win10/11 / Server 2016+",
+                           variable=self._os, value="win10",
+                           font=ctk.CTkFont(size=13),
+                           ).pack(anchor="w", padx=20, pady=2)
+        ctk.CTkRadioButton(self, text="Win7 / Server 2012",
+                           variable=self._os, value="win7",
+                           font=ctk.CTkFont(size=13),
+                           ).pack(anchor="w", padx=20, pady=2)
+
+        btn_f = ctk.CTkFrame(self, fg_color="transparent")
+        btn_f.pack(fill="x", padx=20, pady=(12, 12))
+        ctk.CTkButton(btn_f, text="取消", width=80,
+                       command=self.destroy,
+                       font=ctk.CTkFont(size=12)).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(btn_f, text="生成", command=self._confirm,
+                       font=ctk.CTkFont(size=12, weight="bold"),
+                       fg_color="#6750A4").pack(side="right")
+
+        self._confirmed = False
+
+    def _confirm(self) -> None:
+        self._confirmed = True
+        self._result = (self._target.get(), self._os.get() == "win7")
+        self.destroy()
+
+    def result(self):
+        return self._result if self._confirmed else None
+
 
 class _AddClientDialog(ctk.CTkToplevel):
     def __init__(self, parent, suggested_ip: str):
