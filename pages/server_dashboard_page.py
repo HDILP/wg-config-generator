@@ -7,11 +7,51 @@ import customtkinter as ctk
 import threading
 
 from app.workspace import WorkspaceMode
+from core.wg_keygen import check_wg_available
 from services.system_service import get_system_info
 from widgets import CardFrame, StatusIndicator
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
+
+
+def _svc_status(name: str) -> str:
+    """Check Windows service status via sc query."""
+    import subprocess, sys
+    if sys.platform != "win32":
+        return "unknown"
+    try:
+        r = subprocess.run(["sc", "query", name], capture_output=True,
+                           text=True, timeout=10)
+        return "ok" if "RUNNING" in r.stdout else "error"
+    except Exception:
+        return "unknown"
+
+
+def _fw_status() -> str:
+    """Check if Windows Firewall is on."""
+    import subprocess, sys
+    if sys.platform != "win32":
+        return "unknown"
+    try:
+        r = subprocess.run(["netsh", "advfirewall", "show", "currentprofile"],
+                           capture_output=True, text=True, timeout=10)
+        return "ok" if "ON" in r.stdout.upper() else "error"
+    except Exception:
+        return "unknown"
+
+
+def _backup_status() -> str:
+    """Check if any GP Backup scheduled task exists."""
+    import subprocess, sys
+    if sys.platform != "win32":
+        return "unknown"
+    try:
+        r = subprocess.run(["schtasks", "/query", "/tn", "GPBackup*"],
+                           capture_output=True, text=True, timeout=10)
+        return "ok" if "GPBackup" in r.stdout else "warning"
+    except Exception:
+        return "unknown"
 
 
 class ServerDashboardPage(ctk.CTkFrame):
@@ -21,6 +61,7 @@ class ServerDashboardPage(ctk.CTkFrame):
     def __init__(self, master, app: GPServerManager, **kwargs):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)
         self._app = app
+        self._indicators: dict[str, StatusIndicator] = {}
         self._build()
 
     def _build(self) -> None:
@@ -48,7 +89,9 @@ class ServerDashboardPage(ctk.CTkFrame):
             ("Windows 防火墙", "firewall"),
             ("自动备份", "backup"),
         ]:
-            StatusIndicator(svc_card, label, "unknown").pack(fill="x", padx=16, pady=4)
+            si = StatusIndicator(svc_card, label, "unknown")
+            si.pack(fill="x", padx=16, pady=4)
+            self._indicators[key] = si
 
         # Right column: system info
         sys_card = CardFrame(right, title="系统信息")
@@ -89,12 +132,24 @@ class ServerDashboardPage(ctk.CTkFrame):
 
     def _refresh_worker(self) -> None:
         try:
+            # System info
             info = get_system_info()
             def _set(k, v):
                 self._sys_rows[k].configure(text=f"{v}%" if v else "N/A")
             self.after(0, lambda: _set("CPU", info.cpu_percent))
             self.after(0, lambda: _set("内存", info.memory_percent))
             self.after(0, lambda: _set("磁盘", info.disk_percent))
+
+            # Service statuses
+            svc_map = {
+                "sql": _svc_status("MSSQL$MSSQLSERVER"),
+                "wireguard": "ok" if not check_wg_available() else "error",
+                "firewall": _fw_status(),
+                "backup": _backup_status(),
+            }
+            for key, status in svc_map.items():
+                self.after(0, lambda k=key, s=status: self._indicators[k].set_status(s))
+
             self.after(0, lambda: self._set_status("✓ 已刷新"))
         except Exception as exc:
             self.after(0, lambda: self._set_status(f"✗ {exc}"))
