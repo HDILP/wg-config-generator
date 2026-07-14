@@ -178,17 +178,17 @@ def _reg_path(instance: str) -> str:
             subkey = line.rsplit(None, 1)[-1].strip()
             return (
                 f"HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\"
-                f"{subkey}\\MSSQLServer\\SuperSocketNetLib\\Tcp\\IPAll"
+                f"{subkey}\\MSSQLServer\\SuperSocketNetLib\\Tcp"
             )
     # Fallback: legacy path (SQL 2008-) for default, guess for named
     if instance.upper() == "MSSQLSERVER":
         return (
             r"HKLM\SOFTWARE\Microsoft\MSSQLServer"
-            r"\MSSQLServer\SuperSocketNetLib\Tcp\IPAll"
+            r"\MSSQLServer\SuperSocketNetLib\Tcp"
         )
     return (
         f"HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\"
-        f"MSSQL${instance}\\MSSQLServer\\SuperSocketNetLib\\Tcp\\IPAll"
+        f"MSSQL${instance}\\MSSQLServer\\SuperSocketNetLib\\Tcp"
     )
 
 
