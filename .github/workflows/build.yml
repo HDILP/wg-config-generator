@@ -17,6 +17,7 @@ jobs:
           --enable-plugin=tk-inter --include-package=customtkinter
           --include-package-data=customtkinter
           --include-package=app,backup,core,models,pages,services,utils,widgets
+          --include-data-dir=assets/installers=assets/installers
           --assume-yes-for-downloads
           --output-dir=dist --output-filename=GPServerManager
           main.py
