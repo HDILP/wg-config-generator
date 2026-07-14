@@ -602,3 +602,39 @@ def get_backup_files(project: Project) -> List[Dict]:
         except OSError:
             pass
     return files
+
+
+def list_sql_backup_jobs(instance: str = "MSSQLSERVER") -> List[Dict[str, str]]:
+    """Query msdb.dbo.sysjobs via sqlcmd, return all SQL Agent jobs."""
+    try:
+        r = subprocess.run(
+            ["sqlcmd", "-S", _server(instance), "-E", "-h", "-1", "-s", "|",
+             "-Q", "SET NOCOUNT ON; SELECT j.name, j.enabled, "
+                   "ISNULL(CONVERT(VARCHAR, jh.last_run_date), ''), "
+                   "ISNULL(CONVERT(VARCHAR, jh.last_run_time), '') "
+                   "FROM msdb.dbo.sysjobs j "
+                   "LEFT JOIN (SELECT job_id, MAX(run_date) last_run_date, "
+                   "MAX(run_time) last_run_time FROM msdb.dbo.sysjobhistory "
+                   "WHERE step_id=0 GROUP BY job_id) jh "
+                   "ON j.job_id = jh.job_id ORDER BY j.name"],
+            capture_output=True, text=True, timeout=15,
+            encoding="utf-8", errors="replace",
+        )
+        rows = []
+        for line in r.stdout.splitlines():
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) >= 2 and parts[0]:
+                date_s = parts[2] if len(parts) > 2 else ""
+                time_s = parts[3] if len(parts) > 3 else ""
+                last_run = ""
+                if len(date_s) == 8:
+                    last_run = f"{date_s[:4]}-{date_s[4:6]}-{date_s[6:8]}"
+                    if len(time_s) >= 6:
+                        last_run += f" {time_s[:2]}:{time_s[2:4]}:{time_s[4:6]}"
+                rows.append(dict(
+                    name=parts[0], enabled="是" if parts[1] == "1" else "否",
+                    last_run=last_run or "从未运行",
+                ))
+        return rows
+    except Exception:
+        return []

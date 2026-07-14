@@ -25,6 +25,7 @@ from services.backup_service import (
     get_scheduled_task_status,
     immediate_backup,
     list_databases,
+    list_sql_backup_jobs,
     remove_scheduled_task,
     restore_database,
 )
@@ -924,3 +925,40 @@ class BackupCenterPage(ctk.CTkFrame):
             self.after(0, lambda: self._on_engine_change())
 
         threading.Thread(target=_work, daemon=True).start()
+
+    def _show_sql_jobs(self) -> None:
+        """Open a dialog listing all SQL Agent jobs."""
+        instance = self._project.settings.sql.instance if self._project else "MSSQLSERVER"
+        top = ctk.CTkToplevel()
+        top.title("SQL Server 代理作业")
+        top.geometry("640x400")
+        top.resizable(True, True)
+        top.transient()
+        top.grab_set()
+
+        frame = ctk.CTkScrollableFrame(top)
+        frame.pack(fill="both", expand=True, padx=12, pady=12)
+
+        lbl = ctk.CTkLabel(frame, text="查询中…", font=ctk.CTkFont(size=11))
+        lbl.pack(anchor="w")
+
+        def _load():
+            jobs = list_sql_backup_jobs(instance)
+            lbl.after(0, lbl.destroy)
+            if not jobs:
+                ctk.CTkLabel(frame, text="未找到作业或无法连接",
+                             font=ctk.CTkFont(size=12)).pack()
+                return
+            for j in jobs:
+                row = ctk.CTkFrame(frame, fg_color="transparent")
+                row.pack(fill="x", pady=2)
+                ctk.CTkLabel(row, text=j["name"], font=ctk.CTkFont(size=13),
+                             width=300, anchor="w").pack(side="left")
+                ctk.CTkLabel(row, text=j["enabled"], font=ctk.CTkFont(size=11),
+                             width=40, anchor="center",
+                             text_color="#2b7a4b" if j["enabled"] == "是" else "#b33",
+                             ).pack(side="left")
+                ctk.CTkLabel(row, text=j["last_run"], font=ctk.CTkFont(size=11),
+                             text_color="#79747E").pack(side="right")
+
+        threading.Thread(target=_load, daemon=True).start()
