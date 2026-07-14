@@ -145,17 +145,36 @@ $lines -join "`n"
 
 
 def check_compression_support(instance: str = "MSSQLSERVER") -> bool:
-    """Check if SQL Server supports backup compression via sqlcmd."""
+    """Check SQL Server edition/version supports backup compression (Enterprise/Standard 2008+)."""
     if sys.platform != "win32":
         return True
     try:
         r = subprocess.run(
-            ["sqlcmd", "-S", _server(instance), "-E", "-h", "-1",
-             "-Q", "SET NOCOUNT ON; SELECT value FROM sys.configurations WHERE name = 'backup compression default'"],
+            ["sqlcmd", "-S", _server(instance), "-E", "-h", "-1", "-W",
+             "-Q", "SELECT SERVERPROPERTY('Edition'), SERVERPROPERTY('ProductVersion')"],
             capture_output=True, text=True, timeout=10,
             encoding="utf-8", errors="replace",
         )
-        return r.stdout.strip() == "1"
+        for line in r.stdout.splitlines():
+            line = line.strip()
+            if not line or line.startswith("-"):
+                continue
+            parts = line.split()
+            if len(parts) < 2:
+                continue
+            edition = " ".join(parts[:-1]).lower()
+            version = parts[-1]
+            # Not supported: Express, Web, Compact, LocalDB
+            no_compress = {"express", "web", "compact", "localdb"}
+            if any(x in edition for x in no_compress):
+                return False
+            # Version check: need at least 10.0 (SQL 2008)
+            try:
+                major = int(version.split(".")[0])
+                return major >= 10
+            except (ValueError, IndexError):
+                return False
+        return False
     except Exception:
         return False
 
