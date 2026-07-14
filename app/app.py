@@ -85,11 +85,15 @@ class GPServerManager(ctk.CTk):
                      font=ctk.CTkFont(size=20, weight="bold")).pack(pady=(60, 10))
         ctk.CTkLabel(frame, text=self._wg_error or "", wraplength=400,
                      font=ctk.CTkFont(size=13), text_color="gray40").pack(pady=10)
-        installer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "wireguard-installer.exe")
+        installer = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..", "assets", "installers", "wireguard-amd64-1.1.msi",
+        )
         if os.path.exists(installer):
             ctk.CTkButton(frame, text="⚡ 一键安装 WireGuard",
                           font=ctk.CTkFont(size=14, weight="bold"),
-                          command=lambda: subprocess.Popen([installer], shell=True),
+                          command=lambda: subprocess.Popen(
+                              ["msiexec.exe", "/i", installer]),
                           ).pack(pady=12)
         ctk.CTkButton(frame, text="重启程序", font=ctk.CTkFont(size=13),
                       command=lambda: os.execl(sys.executable, sys.executable, *sys.argv),

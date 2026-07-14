@@ -17,7 +17,8 @@ if TYPE_CHECKING:
     from app.app import GPServerManager
 
 WG_DIR = Path("C:/Program Files/WireGuard")
-WG_INSTALLER = Path(__file__).resolve().parent.parent / "wireguard-installer.exe"
+WG_INSTALLER = (Path(__file__).resolve().parent.parent / "assets" / "installers"
+                / "wireguard-amd64-1.1.msi")
 
 
 class WireGuardServerPage(ctk.CTkFrame):
@@ -94,4 +95,4 @@ class WireGuardServerPage(ctk.CTkFrame):
 
     @staticmethod
     def _install_wireguard() -> None:
-        subprocess.Popen([str(WG_INSTALLER)])
+        subprocess.Popen(["msiexec.exe", "/i", str(WG_INSTALLER)])

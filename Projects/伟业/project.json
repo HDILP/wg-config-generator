@@ -35,5 +35,71 @@
     "compression_auto_disabled": false
   },
   "note": "",
-  "clients": []
+  "clients": [
+    {
+      "name": "1",
+      "vpn_ip": "10.66.66.2",
+      "private_key": "eCd0TEVnNXBRLKx4hjQIrnjKUPogMZrUMNpHR7/MqXc=",
+      "public_key": "i5t0HSs5yQlMbEJQIPcdIGyGCLX1r8X+gy6IohnZwx0=",
+      "status": "active",
+      "note": "",
+      "created_at": "2026-07-14 20:39",
+      "allowed_ips": "",
+      "remote_type": "",
+      "remote_id": "",
+      "remote_password": ""
+    },
+    {
+      "name": "2",
+      "vpn_ip": "10.66.66.3",
+      "private_key": "iFm25fDUK2dcptw6yF7WRVDZ8SZYJqKaXS8rMcwWQUU=",
+      "public_key": "THEL+IyYYAXNrC/5PmbVYaVwU/vgaszBZ73+b8UbKS8=",
+      "status": "active",
+      "note": "",
+      "created_at": "2026-07-14 20:39",
+      "allowed_ips": "",
+      "remote_type": "",
+      "remote_id": "",
+      "remote_password": ""
+    },
+    {
+      "name": "3",
+      "vpn_ip": "10.66.66.4",
+      "private_key": "MPzw3q/xkzAS7mcb7hUNmlwkIIqA/VNs6v+D7j9nwGE=",
+      "public_key": "J2PNY2rnPygJ/azxSbIzhPYyWw0dfOK+gTSE0jAryCM=",
+      "status": "active",
+      "note": "",
+      "created_at": "2026-07-14 20:39",
+      "allowed_ips": "",
+      "remote_type": "",
+      "remote_id": "",
+      "remote_password": ""
+    },
+    {
+      "name": "4",
+      "vpn_ip": "10.66.66.5",
+      "private_key": "8KADuf9ZXkCv8heQ9NkyzAyWYWvpI7VVIKODw/A2A24=",
+      "public_key": "H9HN3Ou+QMZbytMe0oWAxr3pwYV3dqPgLFaPdi0cpjM=",
+      "status": "active",
+      "note": "",
+      "created_at": "2026-07-14 20:39",
+      "allowed_ips": "",
+      "remote_type": "",
+      "remote_id": "",
+      "remote_password": ""
+    },
+    {
+      "name": "5",
+      "vpn_ip": "10.66.66.6",
+      "private_key": "qFXUl2fjgpbuE1dEZ3PWiVRelJkKRhV8e1+/Kf6UvHQ=",
+      "public_key": "JLFLh9MD+/YcgPu7ydYW4ssengaBfnUO1hRnTn2yiiU=",
+      "status": "active",
+      "note": "",
+      "created_at": "2026-07-14 20:39",
+      "allowed_ips": "",
+      "remote_type": "",
+      "remote_id": "",
+      "remote_password": ""
+    }
+  ]
 }
