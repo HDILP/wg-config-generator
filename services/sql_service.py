@@ -167,14 +167,7 @@ def _agent_service(instance: str) -> str:
 
 
 def _reg_path(instance: str) -> str:
-    """Resolve SQL Server SuperSocketNetLib TCP/IPAll registry path."""
-    if instance.upper() == "MSSQLSERVER":
-        # ponytail: hardcode legacy path — works SQL 2008–2019 default instance
-        return (
-            r"HKLM\SOFTWARE\Microsoft\MSSQLServer"
-            r"\MSSQLServer\SuperSocketNetLib\Tcp\IPAll"
-        )
-    # Named instance via Instance Names → SQL
+    """Resolve TCP/IPAll registry path via Instance Names, fallback to legacy."""
     raw = _cmd([
         "reg", "query",
         r"HKLM\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL",
@@ -187,7 +180,12 @@ def _reg_path(instance: str) -> str:
                 f"HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\"
                 f"{subkey}\\MSSQLServer\\SuperSocketNetLib\\Tcp\\IPAll"
             )
-    # Fallback
+    # Fallback: legacy path (SQL 2008-) for default, guess for named
+    if instance.upper() == "MSSQLSERVER":
+        return (
+            r"HKLM\SOFTWARE\Microsoft\MSSQLServer"
+            r"\MSSQLServer\SuperSocketNetLib\Tcp\IPAll"
+        )
     return (
         f"HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\"
         f"MSSQL${instance}\\MSSQLServer\\SuperSocketNetLib\\Tcp\\IPAll"
@@ -239,24 +237,23 @@ def get_sql_info(instance: str = "MSSQLSERVER") -> SqlInstanceInfo:
     listen_raw = _reg_read_string(rp, "ListenAll")
     info.listen_mode = SqlListenMode.ALL if listen_raw.strip() == "1" else SqlListenMode.LOCAL
 
-    # sqlcmd fallback when registry shows default port
-    if info.port == 65529:
-        addr = _server(instance)
-        logger.info("Port is default, trying sqlcmd via %s", addr)
-        try:
-            r = subprocess.run(
-                ["sqlcmd", "-S", addr, "-E", "-Q",
-                 "SET NOCOUNT ON; SELECT local_tcp_port FROM sys.dm_exec_connections WHERE session_id = @@SPID"],
-                capture_output=True, text=True, timeout=10,
-                encoding="utf-8", errors="replace",
-            )
-            for line in r.stdout.splitlines():
-                line = line.strip()
-                if line.isdigit() and 1 <= int(line) <= 65535:
-                    info.port = int(line)
-                    break
-        except Exception:
-            pass
+    # Always try sqlcmd for actual port — registry can be stale/wrong
+    addr = _server(instance)
+    logger.info("Querying live port via sqlcmd -S %s", addr)
+    try:
+        r = subprocess.run(
+            ["sqlcmd", "-S", addr, "-E", "-Q", "-h", "-1",
+             "SET NOCOUNT ON; SELECT local_tcp_port FROM sys.dm_exec_connections WHERE session_id = @@SPID"],
+            capture_output=True, text=True, timeout=10,
+            encoding="utf-8", errors="replace",
+        )
+        for line in r.stdout.splitlines():
+            line = line.strip()
+            if line.isdigit() and 1 <= int(line) <= 65535:
+                info.port = int(line)
+                break
+    except Exception as exc:
+        logger.warning("sqlcmd port query failed: %s", exc)
 
     # Version
     ver_path = _version_reg_path(instance)

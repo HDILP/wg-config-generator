@@ -5,8 +5,15 @@ Entry point. Shows workspace mode selector at startup, then launches the app.
 """
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s [%(name)s] %(message)s",
+    stream=sys.stdout,
+)
 
 from models.app_settings import AppSettings
 from app.workspace import WorkspaceMode
