@@ -132,8 +132,6 @@ class SQLPage(ctk.CTkFrame):
         self._status.configure(text=text)
 
     def _save_port(self) -> None:
-        if not self._project:
-            return
         try:
             port = int(self._port_entry.get().strip())
             if not (1 <= port <= 65535):
@@ -142,19 +140,20 @@ class SQLPage(ctk.CTkFrame):
             messagebox.showerror("错误", "端口必须是 1-65535 之间的数字")
             return
 
-        self._project.settings.sql.port = port
+        if self._project:
+            self._project.settings.sql.port = port
         self._set_status(f"Setting SQL port to {port}…")
         threading.Thread(target=self._port_worker, args=(port,), daemon=True).start()
 
     def _port_worker(self, port: int) -> None:
-        if not self._project:
-            return
-        result = set_sql_port(port, self._project.settings.sql.instance)
+        instance = self._project.settings.sql.instance if self._project else "MSSQLSERVER"
+        result = set_sql_port(port, instance)
         self.after(0, lambda: self._set_status(
             "✓ 端口已设置，需重启 SQL 生效" if "OK" in result or "n/a" in result else f"✗ {result}"))
 
     def _save_all(self) -> None:
         if not self._project:
+            self._set_status("✗ 未选择项目，无法保存到配置文件")
             return
         listen = self._listen_var.get()
         self._project.settings.sql.listen = listen
@@ -171,14 +170,14 @@ class SQLPage(ctk.CTkFrame):
         threading.Thread(target=self._save_worker, args=(mode,), daemon=True).start()
 
     def _save_worker(self, mode: SqlListenMode) -> None:
-        if not self._project:
-            return
-        result = set_sql_listen_mode(mode, self._project.settings.sql.instance)
+        instance = self._project.settings.sql.instance if self._project else "MSSQLSERVER"
+        result = set_sql_listen_mode(mode, instance)
         self.after(0, lambda: self._set_status(
             "✓ 配置已保存，需重启 SQL 生效" if "OK" in result or "n/a" in result else f"✗ {result}"))
 
     def _save_and_restart(self) -> None:
         if not self._project:
+            self._set_status("✗ 未选择项目，无法保存到配置文件")
             return
         listen = self._listen_var.get()
         self._project.settings.sql.listen = listen
@@ -193,9 +192,7 @@ class SQLPage(ctk.CTkFrame):
         threading.Thread(target=self._save_restart_worker, daemon=True).start()
 
     def _save_restart_worker(self) -> None:
-        if not self._project:
-            return
-        instance = self._project.settings.sql.instance
+        instance = self._project.settings.sql.instance if self._project else "MSSQLSERVER"
         listen = self._listen_var.get()
         mode = SqlListenMode.ALL if listen == "0.0.0.0" else SqlListenMode.LOCAL
         set_sql_listen_mode(mode, instance)
@@ -209,14 +206,11 @@ class SQLPage(ctk.CTkFrame):
             "✓ 已保存并重启" if result == "OK" else f"✗ {result}"))
 
     def _restart_sql(self) -> None:
-        if not self._project:
-            return
         self._set_status("Restarting SQL Server…")
         threading.Thread(target=self._restart_worker, daemon=True).start()
 
     def _restart_worker(self) -> None:
-        if not self._project:
-            return
-        result = restart_sql(self._project.settings.sql.instance)
+        instance = self._project.settings.sql.instance if self._project else "MSSQLSERVER"
+        result = restart_sql(instance)
         self.after(0, lambda: self._set_status(
             "✓ SQL 已重启" if result == "OK" else f"✗ {result}"))
