@@ -5,11 +5,20 @@ for Win7 compatibility. Returns dummy data on non-Windows.
 """
 from __future__ import annotations
 
+import logging
 import subprocess
 import sys
-from dataclasses import dataclass, field
+import time
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+
+def _server(instance: str) -> str:
+    """连接地址：默认实例用 `.`，命名实例用 `.\\NAME`"""
+    return "." if instance.upper() == "MSSQLSERVER" else f".\\{instance}"
 
 
 class SqlListenMode(Enum):
@@ -21,6 +30,7 @@ class SqlListenMode(Enum):
 class SqlInstanceInfo:
     version: str = ""
     state: str = ""
+    agent_state: str = ""
     port: int = 65529
     tcp_enabled: bool = False
     listen_mode: SqlListenMode = SqlListenMode.LOCAL
@@ -28,7 +38,6 @@ class SqlInstanceInfo:
 
 
 def _has_powershell() -> bool:
-    """Quick check: is powershell.exe on PATH?"""
     try:
         subprocess.run(
             ["powershell", "-NoProfile", "-Command", "echo 1"],
@@ -44,6 +53,7 @@ def _powershell(script: str) -> str:
         r = subprocess.run(
             ["powershell", "-NoProfile", "-Command", script],
             capture_output=True, text=True, timeout=15,
+            encoding="utf-8", errors="replace",
         )
         return r.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
@@ -51,11 +61,11 @@ def _powershell(script: str) -> str:
 
 
 def _cmd(args: list[str]) -> str:
-    """Run a cmd.exe command, return stdout."""
     try:
         r = subprocess.run(
             ["cmd", "/c"] + args,
             capture_output=True, text=True, timeout=15,
+            encoding="utf-8", errors="replace",
         )
         return r.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
@@ -63,18 +73,27 @@ def _cmd(args: list[str]) -> str:
 
 
 def _reg_query(key: str, value: str) -> str:
-    """Read registry value via reg.exe."""
     return _cmd(["reg", "query", key, "/v", value])
 
 
 def _reg_set(key: str, value: str, data: str, typ: str = "REG_SZ") -> str:
-    """Write registry value via reg.exe."""
     return _cmd(["reg", "add", key, "/v", value, "/t", typ, "/d", data, "/f"])
 
 
+def _reg_read_string(key: str, value: str) -> str:
+    """Read a REG_SZ value from registry, return '' on failure."""
+    raw = _reg_query(key, value)
+    for line in raw.splitlines():
+        if value in line:
+            parts = line.rsplit(None, 1)
+            if len(parts) >= 2:
+                return parts[-1].strip()
+    return ""
+
+
 def _service_state(name: str) -> str:
-    """Get service state via sc.exe."""
     raw = _cmd(["sc", "query", name])
+    # sc output: "STATE              : 4  RUNNING"
     for line in raw.splitlines():
         line = line.strip()
         if "STATE" in line:
@@ -85,12 +104,80 @@ def _service_state(name: str) -> str:
     return "Unknown"
 
 
+def _wait_for_service_state(name: str, target: str, timeout: int = 30) -> bool:
+    """Poll sc query until service reaches target state. Returns True on success."""
+    for _ in range(timeout):
+        state = _service_state(name)
+        if state == target:
+            return True
+        if state == "Unknown":
+            return False
+        time.sleep(1)
+    return False
+
+
+def _get_agent_state(svc_name: str) -> str:
+    """SQL Agent state via WMI (SQL provider) → PS Get-Service → sc.exe.
+
+    sc.exe doesn't reliably detect SQL Server Agent (returns empty on some
+    installs). WMI via PowerShell avoids the dependency issue entirely.
+    """
+    if not _has_powershell():
+        return _service_state(svc_name)
+
+    # Try WMI namespaces for SQL 2008–2022
+    for ns in [
+        "root\\Microsoft\\SqlServer\\ComputerManagement10",  # 2008
+        "root\\Microsoft\\SqlServer\\ComputerManagement11",  # 2012
+        "root\\Microsoft\\SqlServer\\ComputerManagement12",  # 2014
+        "root\\Microsoft\\SqlServer\\ComputerManagement13",  # 2016
+        "root\\Microsoft\\SqlServer\\ComputerManagement14",  # 2017
+        "root\\Microsoft\\SqlServer\\ComputerManagement15",  # 2019
+        "root\\Microsoft\\SqlServer\\ComputerManagement16",  # 2022
+    ]:
+        state = _powershell(
+            f"$svc = Get-WmiObject -Namespace '{ns}' -Query \"SELECT * FROM SqlService WHERE ServiceName='{svc_name}'\" -ErrorAction SilentlyContinue; "
+            f"if ($svc) {{ $svc.State }}"
+        )
+        # WMI State: 1=Stopped, 2=StartPending, 3=StopPending, 4=Running
+        if state and not state.startswith("<error:") and state.isdigit():
+            return "Running" if state == "4" else "Stopped"
+
+    # Fallback: PS Get-Service
+    svc = _powershell(
+        f'Get-Service -Name "{svc_name}" -ErrorAction SilentlyContinue '
+        f"| Select-Object -ExpandProperty Status"
+    )
+    if "Running" in svc:
+        return "Running"
+    if "Stopped" in svc:
+        return "Stopped"
+    return "Unknown"
+
+
+def _instance_service(instance: str) -> str:
+    return "MSSQLSERVER" if instance.upper() == "MSSQLSERVER" else f"MSSQL${instance}"
+
+
+def _agent_service(instance: str) -> str:
+    return "SQLSERVERAGENT" if instance.upper() == "MSSQLSERVER" else f"SQLSERVERAGENT${instance}"
+
+
+# ── registry path ────────────────────────────────────────────────
+
+
 def _reg_path(instance: str) -> str:
-    """Resolve SQL Server instance registry key."""
-    # 1. Instance Names\SQL
+    """Resolve SQL Server SuperSocketNetLib TCP/IPAll registry path."""
+    if instance.upper() == "MSSQLSERVER":
+        # ponytail: hardcode legacy path — works SQL 2008–2019 default instance
+        return (
+            r"HKLM\SOFTWARE\Microsoft\MSSQLServer"
+            r"\MSSQLServer\SuperSocketNetLib\Tcp\IPAll"
+        )
+    # Named instance via Instance Names → SQL
     raw = _cmd([
-        "reg", "query", 
-        "HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\Instance Names\\SQL",
+        "reg", "query",
+        r"HKLM\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL",
         "/v", instance,
     ])
     for line in raw.splitlines():
@@ -100,94 +187,69 @@ def _reg_path(instance: str) -> str:
                 f"HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\"
                 f"{subkey}\\MSSQLServer\\SuperSocketNetLib\\Tcp\\IPAll"
             )
-    # 2. Search for subkey containing instance name
-    raw = _cmd([
-        "reg", "query",
-        "HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server",
-        "/s", "/f", instance, "/k",
-    ])
-    for line in raw.splitlines():
-        line = line.strip()
-        if instance in line and "MSSQLServer" in line:
-            return (
-                f"{line}\\SuperSocketNetLib\\Tcp\\IPAll"
-            )
-    # 3. Hardcoded fallback
+    # Fallback
     return (
         f"HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\"
-        f"MSSQL{instance}\\MSSQLServer\\SuperSocketNetLib\\Tcp\\IPAll"
+        f"MSSQL${instance}\\MSSQLServer\\SuperSocketNetLib\\Tcp\\IPAll"
     )
 
 
-def _instance_service(instance: str) -> str:
-    """Return the Windows service name for a SQL instance.
-    Default instance → 'MSSQLSERVER', named → 'MSSQL$Instance'.
-    """
-    return "MSSQLSERVER" if instance.upper() == "MSSQLSERVER" else f"MSSQL${instance}"
+def _version_reg_path(instance: str) -> str:
+    """Registry key holding CurrentVersion for the instance."""
+    if instance.upper() == "MSSQLSERVER":
+        return r"HKLM\SOFTWARE\Microsoft\MSSQLServer\MSSQLServer"
+    # ponytail: named-instance version lookup — add when actually needed
+    return ""
 
 
-def _agent_service(instance: str) -> str:
-    """Return the Windows service name for SQL Agent.
-    Default instance → 'SQLSERVERAGENT', named → 'SQLSERVERAGENT$Instance'.
-    """
-    return "SQLSERVERAGENT" if instance.upper() == "MSSQLSERVER" else f"SQLSERVERAGENT${instance}"
+# ── public API ───────────────────────────────────────────────────
 
 
 def get_sql_info(instance: str = "MSSQLSERVER") -> SqlInstanceInfo:
     """Query SQL Server instance info."""
     info = SqlInstanceInfo()
-    use_ps = _has_powershell()
 
     if sys.platform != "win32":
         info.version = "n/a (non-Windows)"
         info.state = "unknown"
         return info
 
-    # Service state
+    # Engine service state — sc.exe (reliable, English output on all locales)
     svc_name = _instance_service(instance)
-    if use_ps:
-        svc = _powershell(
-            f'Get-Service -Name "{svc_name}" -ErrorAction SilentlyContinue '
-            f"| Select-Object -Property Status"
-        )
-        info.state = "Running" if "Running" in svc else (
-            "Stopped" if "Stopped" in svc else "Unknown"
-        )
-    else:
-        info.state = _service_state(_instance_service(instance))
+    info.state = _service_state(svc_name)
+    logger.info("Service '%s' state: %s", svc_name, info.state)
 
+    # Agent state
+    agent_svc = _agent_service(instance)
+    info.agent_state = _get_agent_state(agent_svc)
+
+    # Registry reads — reg.exe only (PS path had "HKLM:HKLM\..." bug)
     rp = _reg_path(instance)
 
-    # TCP port
-    if use_ps:
-        port_raw = _powershell(
-            f'(Get-ItemProperty -Path "HKLM:{rp}" '
-            f"-Name TcpPort -ErrorAction SilentlyContinue).TcpPort"
-        )
-    else:
-        raw = _reg_query(rp, "TcpPort")
-        # reg.exe output: "    TcpPort    REG_SZ    65529"
-        for line in raw.splitlines():
-            if "TcpPort" in line:
-                port_raw = line.rsplit(None, 1)[-1].strip()
-                break
-        else:
-            port_raw = ""
-
+    port_raw = _reg_read_string(rp, "TcpPort")
     if port_raw and not port_raw.startswith("<error:"):
         try:
             info.port = int(port_raw)
         except ValueError:
             pass
 
-    # Fallback: try sqlcmd for port when registry fails
+    tcp_en = _reg_read_string(rp, "Enabled")
+    info.tcp_enabled = tcp_en.strip() == "1"
+
+    listen_raw = _reg_read_string(rp, "ListenAll")
+    info.listen_mode = SqlListenMode.ALL if listen_raw.strip() == "1" else SqlListenMode.LOCAL
+
+    # sqlcmd fallback when registry shows default port
     if info.port == 65529:
+        addr = _server(instance)
+        logger.info("Port is default, trying sqlcmd via %s", addr)
         try:
-            import subprocess as _sp
-            r = _sp.run(["sqlcmd", "-S", f".\\{instance}", "-E", "-Q",
-                         "SET NOCOUNT ON; SELECT local_tcp_port FROM sys.dm_exec_connections WHERE session_id = @@SPID"],
-                        capture_output=True, text=True, timeout=10,
-                        encoding="utf-8", errors="replace")
+            r = subprocess.run(
+                ["sqlcmd", "-S", addr, "-E", "-Q",
+                 "SET NOCOUNT ON; SELECT local_tcp_port FROM sys.dm_exec_connections WHERE session_id = @@SPID"],
+                capture_output=True, text=True, timeout=10,
+                encoding="utf-8", errors="replace",
+            )
             for line in r.stdout.splitlines():
                 line = line.strip()
                 if line.isdigit() and 1 <= int(line) <= 65535:
@@ -196,114 +258,71 @@ def get_sql_info(instance: str = "MSSQLSERVER") -> SqlInstanceInfo:
         except Exception:
             pass
 
-    # TCP/IP enabled
-    if use_ps:
-        tcp_en = _powershell(
-            f'(Get-ItemProperty -Path "HKLM:{rp}" '
-            f"-Name Enabled -ErrorAction SilentlyContinue).Enabled"
-        )
-    else:
-        raw = _reg_query(rp, "Enabled")
-        for line in raw.splitlines():
-            if "Enabled" in line:
-                tcp_en = line.rsplit(None, 1)[-1].strip()
-                break
-        else:
-            tcp_en = ""
-    info.tcp_enabled = tcp_en.strip() == "1"
-
-    # Listen mode
-    if use_ps:
-        listen_all = _powershell(
-            f'(Get-ItemProperty -Path "HKLM:{rp}" '
-            f"-Name ListenAll -ErrorAction SilentlyContinue).ListenAll"
-        )
-    else:
-        raw = _reg_query(rp, "ListenAll")
-        for line in raw.splitlines():
-            if "ListenAll" in line:
-                listen_all = line.rsplit(None, 1)[-1].strip()
-                break
-        else:
-            listen_all = ""
-    info.listen_mode = SqlListenMode.ALL if listen_all.strip() == "1" else SqlListenMode.LOCAL
-
     # Version
-    if use_ps:
-        ver = _powershell(
-            '(Get-ItemProperty -Path "HKLM:\\SOFTWARE\\Microsoft\\'
-            'Microsoft SQL Server\\" '
-            "-ErrorAction SilentlyContinue | "
-            "Select-Object -ExpandProperty CurrentVersion)"
-        )
-    else:
-        ver = _cmd([
-            "reg", "query", "HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server",
-            "/v", "CurrentVersion",
-        ])
-        for line in ver.splitlines():
-            if "CurrentVersion" in line:
-                ver = line.rsplit(None, 1)[-1].strip()
-                break
-        else:
-            ver = ""
+    ver_path = _version_reg_path(instance)
+    if ver_path:
+        ver = _reg_read_string(ver_path, "CurrentVersion")
+        if ver and not ver.startswith("<error:"):
+            info.version = ver.strip()
 
-    if ver and not ver.startswith("<error:"):
-        info.version = ver.strip()
-
+    logger.info("SQL info: port=%d tcp=%s listen=%s", info.port, info.tcp_enabled, info.listen_mode.value)
     return info
 
 
 def set_sql_port(port: int, instance: str = "MSSQLSERVER") -> str:
-    """Set SQL Server TCP port via registry."""
     if sys.platform != "win32":
         return "n/a (non-Windows)"
-
     rp = _reg_path(instance)
-
     if _has_powershell():
         return _powershell(
             f'Set-ItemProperty -Path "HKLM:{rp}" '
             f'-Name TcpPort -Value "{port}" -ErrorAction Stop; echo "OK"'
         )
-    else:
-        result = _reg_set(rp, "TcpPort", str(port))
-        return "OK" if "error" not in result.lower() else result
+    result = _reg_set(rp, "TcpPort", str(port))
+    return "OK" if "error" not in result.lower() else result
 
 
-def set_sql_listen_mode(
-    mode: SqlListenMode, instance: str = "MSSQLSERVER"
-) -> str:
-    """Set SQL Server listen mode (127.0.0.1 or 0.0.0.0)."""
+def set_sql_listen_mode(mode: SqlListenMode, instance: str = "MSSQLSERVER") -> str:
     if sys.platform != "win32":
         return "n/a (non-Windows)"
-
     rp = _reg_path(instance)
     listen_all = "1" if mode == SqlListenMode.ALL else "0"
-
     if _has_powershell():
         return _powershell(
             f'Set-ItemProperty -Path "HKLM:{rp}" '
             f'-Name ListenAll -Value {listen_all} -ErrorAction Stop; echo "OK"'
         )
-    else:
-        result = _reg_set(rp, "ListenAll", listen_all)
-        return "OK" if "error" not in result.lower() else result
+    result = _reg_set(rp, "ListenAll", listen_all)
+    return "OK" if "error" not in result.lower() else result
 
 
-def restart_sql(instance: str = "MSSQLSERVER") -> str:
-    """Restart SQL Server service."""
-    if sys.platform != "win32":
-        return "n/a (non-Windows)"
-
-    svc_name = _instance_service(instance)
-
+def _restart_service(svc_name: str) -> str:
+    """Stop → wait → start → wait. Reused for engine + agent. Returns 'OK' or error."""
     if _has_powershell():
-        return _powershell(
+        result = _powershell(
             f'Restart-Service -Name "{svc_name}" -Force -ErrorAction Stop; '
             f"echo 'Restarted'"
         )
-    else:
-        _cmd(["sc", "stop", svc_name])
-        _cmd(["sc", "start", svc_name])
-        return "Restarted"
+        return "OK" if "Restarted" in result else f"✗ {result}"
+
+    # cmd route: synchronous by polling
+    _cmd(["sc", "stop", svc_name])
+    if not _wait_for_service_state(svc_name, "Stopped"):
+        return f"✗ {svc_name} 停止超时"
+    _cmd(["sc", "start", svc_name])
+    if not _wait_for_service_state(svc_name, "Running"):
+        return f"✗ {svc_name} 启动超时"
+    return "OK"
+
+
+def restart_sql(instance: str = "MSSQLSERVER") -> str:
+    if sys.platform != "win32":
+        return "n/a (non-Windows)"
+    return _restart_service(_instance_service(instance))
+
+
+def restart_sql_agent(instance: str = "MSSQLSERVER") -> str:
+    """Restart SQL Server Agent service."""
+    if sys.platform != "win32":
+        return "n/a (non-Windows)"
+    return _restart_service(_agent_service(instance))

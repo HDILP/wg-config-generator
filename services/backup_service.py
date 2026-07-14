@@ -8,6 +8,7 @@ History stored in <project>/backup_history.json.
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -17,7 +18,10 @@ from typing import Dict, List, Optional, Tuple
 
 from models.backup import BackupPolicy
 from models.project import Project
+from services.sql_service import _server
 from utils.file_ops import ensure_dir, read_json, write_json
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -60,7 +64,7 @@ def _ps(script: str, timeout: int = 60) -> Tuple[str, str]:
 
 
 def _conn_str(instance: str = "MSSQLSERVER") -> str:
-    return f"Server=.\\{instance};Database=master;Integrated Security=SSPI;Trusted_Connection=True;"
+    return f"Server={_server(instance)};Database=master;Integrated Security=SSPI;Trusted_Connection=True;"
 
 
 # ═════════════════════════════════════════════════════════════════
@@ -84,17 +88,22 @@ while ($rdr.Read()) {{ $list += $rdr.GetString(0) }}
 $rdr.Close(); $conn.Close()
 $list -join "`n"
 """
+    logger.info("Listing databases via PowerShell SqlClient on %s", _server(instance))
     out, err = _ps(script, timeout=15)
     if not out or out.startswith("<error"):
         # Fallback: try sqlcmd
+        addr = _server(instance)
+        logger.info("PS failed, trying sqlcmd -S %s", addr)
         try:
             r = subprocess.run(
-                ["sqlcmd", "-S", f".\\{instance}", "-Q", "SET NOCOUNT ON; SELECT name FROM sys.databases ORDER BY name"],
+                ["sqlcmd", "-S", addr, "-E", "-Q", "SET NOCOUNT ON; SELECT name FROM sys.databases ORDER BY name"],
                 capture_output=True, text=True, timeout=15,
             )
             out = r.stdout.strip()
-        except (FileNotFoundError, OSError):
-            return []
+            if not out:
+                raise RuntimeError(f"sqlcmd 返回空结果 — stderr: {r.stderr.strip()}")
+        except (FileNotFoundError, OSError) as exc:
+            raise RuntimeError(f"sqlcmd 找不到 — 需要安装 SQL Server 命令行工具 ({exc})") from exc
 
     return [d.strip() for d in out.splitlines()
             if d.strip() and d.strip() not in system_dbs]
@@ -228,8 +237,10 @@ def _exec_sql(instance: str, query: str, timeout: int = 300) -> str:
     if sys.platform != "win32":
         return f"[mock] {query[:60]}..."
 
+    addr = _server(instance)
+    logger.info("SQL: %s — %.80s", addr, query.replace("\n", " "))
+
     if _has_powershell():
-        # Escape single quotes in query for PS
         sq = query.replace("'", "''")
         script = f"""
 $conn = New-Object System.Data.SqlClient.SqlConnection("{_conn_str(instance)}")
@@ -247,17 +258,20 @@ $rdr.Close(); $conn.Close()
 $lines -join "`n"
 """
         out, err = _ps(script, timeout=timeout + 30)
-        return out or err
+        if out and not out.startswith("<error"):
+            return out
+        logger.warning("PS query failed: %.100s", err or out)
     else:
         # Fallback: sqlcmd
         try:
             r = subprocess.run(
-                ["sqlcmd", "-S", f".\\{instance}", "-Q", f"SET NOCOUNT ON; {query}"],
+                ["sqlcmd", "-S", addr, "-Q", f"SET NOCOUNT ON; {query}"],
                 capture_output=True, text=True, timeout=timeout,
                 encoding="utf-8", errors="replace",
             )
             return r.stdout.strip() or r.stderr.strip()
         except (FileNotFoundError, OSError) as exc:
+            logger.error("sqlcmd not found: %s", exc)
             return f"error: sqlcmd not found — {exc}"
 
 
@@ -307,8 +321,9 @@ $savePath = "{save}"
 $compression = ${comp}
 $retention = {retention}
 $instance = "{instance}"
+$serverAddr = if ($instance -eq 'MSSQLSERVER') {{ '.' }} else {{ ".\\$instance" }}
 $ts = Get-Date -Format "yyyy/MM/dd/HHmmss"
-$connStr = "Server=.\\$instance;Database=master;Integrated Security=SSPI;"
+$connStr = "Server=$serverAddr;Database=master;Integrated Security=SSPI;"
 
 foreach ($db in $dbs) {{
     if (-not $db) {{ continue }}

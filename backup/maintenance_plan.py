@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 from backup.engine import BackupEngine, EngineStatus
+from services.sql_service import _agent_service, _get_agent_state, _server
 
 PLAN_NAME = "GP_ServerManager_Backup"
 SCHEDULE_NAME = "GP_ServerManager_Backup_Schedule"
@@ -34,7 +35,7 @@ def _exec_sql(instance: str, query: str, timeout: int = 60) -> Tuple[str, str]:
     # Try PowerShell / .NET SqlClient first
     try:
         sq = query.replace("'", "''")
-        conn_str = f"Server=.\\{instance};Database=master;Integrated Security=SSPI;Trusted_Connection=True;"
+        conn_str = f"Server={_server(instance)};Database=master;Integrated Security=SSPI;Trusted_Connection=True;"
         script = f"""
 $conn = New-Object System.Data.SqlClient.SqlConnection("{conn_str}")
 $conn.Open()
@@ -58,6 +59,7 @@ $conn.Close()
         r = subprocess.run(
             ["powershell", "-NoProfile", "-Command", script],
             capture_output=True, text=True, timeout=timeout + 30,
+            encoding="utf-8", errors="replace",
         )
         return r.stdout.strip(), r.stderr.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
@@ -71,7 +73,7 @@ def _exec_non_query(instance: str, query: str, timeout: int = 60) -> str:
 
     import subprocess
 
-    conn_str = f"Server=.\\{instance};Database=master;Integrated Security=SSPI;Trusted_Connection=True;"
+    conn_str = f"Server={_server(instance)};Database=master;Integrated Security=SSPI;Trusted_Connection=True;"
     sq = query.replace("'", "''")
     script = f"""
 $conn = New-Object System.Data.SqlClient.SqlConnection("{conn_str}")
@@ -91,6 +93,7 @@ $conn.Close()
         r = subprocess.run(
             ["powershell", "-NoProfile", "-Command", script],
             capture_output=True, text=True, timeout=timeout + 30,
+            encoding="utf-8", errors="replace",
         )
         out = r.stdout.strip()
         err = r.stderr.strip()
@@ -111,21 +114,13 @@ def _check_agent_status(instance: str) -> Optional[str]:
     if sys.platform != "win32":
         return None  # mock
 
-    svc = "SQLSERVERAGENT" if instance.upper() == "MSSQLSERVER" else f"SQLSERVERAGENT${instance}"
-    # Service check via sc.exe
-    try:
-        r = subprocess.run(
-            ["sc", "query", svc],
-            capture_output=True, text=True, timeout=10,
-        )
-        output = r.stdout.upper()
-        if "RUNNING" in output:
-            return None
-        if "STOPPED" in output:
-            return "SQL Server Agent 服务未启动"
-        return "SQL Server Agent 服务状态异常"
-    except (FileNotFoundError, OSError) as exc:
-        return f"无法检测 SQL Agent 状态: {exc}"
+    svc = _agent_service(instance)
+    state = _get_agent_state(svc)
+    if state == "Running":
+        return None
+    if state == "Stopped":
+        return "SQL Server Agent 服务未启动"
+    return "SQL Server Agent 服务状态异常"
 
 
 def _check_agent_disabled(instance: str) -> Optional[str]:
@@ -135,7 +130,7 @@ def _check_agent_disabled(instance: str) -> Optional[str]:
     if sys.platform != "win32":
         return None
 
-    svc = "SQLSERVERAGENT" if instance.upper() == "MSSQLSERVER" else f"SQLSERVERAGENT${instance}"
+    svc = _agent_service(instance)
     try:
         r = subprocess.run(
             ["sc", "qc", svc],

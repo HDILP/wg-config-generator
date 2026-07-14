@@ -32,20 +32,13 @@ class SQLPage(ctk.CTkFrame):
         self._build()
 
     def _build(self) -> None:
-        # Use live SQL info when no project (Server mode)
-        from services.sql_service import get_sql_info, SqlListenMode
         instance = self._project.settings.sql.instance if self._project else "MSSQLSERVER"
-        try:
-            live = get_sql_info(instance)
-            live_port = live.port
-            live_listen = live.listen_mode.value
-        except Exception:
-            live_port = 65529
-            live_listen = "127.0.0.1"
-
         s = self._project.settings.sql if self._project else None
+
+        # Seed from project.json immediately — no blocking
+        seed_port = str(s.port) if s and s.port else "65529"
+        seed_listen = s.listen if s and s.listen else "127.0.0.1"
         display_instance = s.instance if s else instance
-        display_port = str(live_port)
 
         ctk.CTkLabel(self, text="SQL Server", font=ctk.CTkFont(size=20, weight="bold"),
                      ).pack(anchor="w", padx=24, pady=(20, 16))
@@ -56,7 +49,7 @@ class SQLPage(ctk.CTkFrame):
 
         fields = [
             ("实例", display_instance),
-            ("端口", display_port),
+            ("端口", seed_port),
         ]
         for label, val in fields:
             row = ctk.CTkFrame(info, fg_color="transparent")
@@ -72,7 +65,7 @@ class SQLPage(ctk.CTkFrame):
         ctk.CTkLabel(port_row, text="端口", font=ctk.CTkFont(size=13),
                      width=60).pack(side="left")
         self._port_entry = ctk.CTkEntry(port_row, font=ctk.CTkFont(size=13), width=100)
-        self._port_entry.insert(0, display_port)
+        self._port_entry.insert(0, seed_port)
         self._port_entry.pack(side="left", padx=(8, 0))
         ctk.CTkButton(port_row, text="保存", width=60, height=28,
                        font=ctk.CTkFont(size=11),
@@ -85,7 +78,7 @@ class SQLPage(ctk.CTkFrame):
         ctk.CTkLabel(listen_row, text="监听", font=ctk.CTkFont(size=13),
                      width=60).pack(side="left")
 
-        self._listen_var = ctk.StringVar(value=s.listen if s else live_listen)
+        self._listen_var = ctk.StringVar(value=seed_listen)
         ctk.CTkRadioButton(listen_row, text="本机 (127.0.0.1)",
                            variable=self._listen_var, value="127.0.0.1",
                            font=ctk.CTkFont(size=12),
@@ -107,6 +100,9 @@ class SQLPage(ctk.CTkFrame):
         ctk.CTkButton(act, text="保存配置", font=ctk.CTkFont(size=13, weight="bold"),
                        fg_color="#6750A4", command=self._save_all,
                        ).pack(side="right", padx=(6, 0))
+        ctk.CTkButton(act, text="保存并重启", font=ctk.CTkFont(size=13),
+                       fg_color="#E65100", command=self._save_and_restart,
+                       ).pack(side="right", padx=(6, 0))
         ctk.CTkButton(act, text="重启 SQL", font=ctk.CTkFont(size=13),
                        fg_color="#FF9800", command=self._restart_sql,
                        ).pack(side="right", padx=(6, 0))
@@ -115,6 +111,22 @@ class SQLPage(ctk.CTkFrame):
         self._status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
                                      text_color="#79747E")
         self._status.pack(pady=(8, 4))
+
+        # Refresh live data in background — no freeze
+        threading.Thread(target=self._refresh_live, args=(instance,), daemon=True).start()
+
+    def _refresh_live(self, instance: str) -> None:
+        try:
+            live = get_sql_info(instance)
+        except Exception:
+            return
+        self.after(0, lambda: self._apply_live(live))
+
+    def _apply_live(self, live) -> None:
+        self._port_entry.delete(0, "end")
+        self._port_entry.insert(0, str(live.port))
+        self._listen_var.set(live.listen_mode.value)
+        self._set_status(f"SQL {live.state} | Agent {live.agent_state}")
 
     def _set_status(self, text: str) -> None:
         self._status.configure(text=text)
@@ -139,7 +151,7 @@ class SQLPage(ctk.CTkFrame):
             return
         result = set_sql_port(port, self._project.settings.sql.instance)
         self.after(0, lambda: self._set_status(
-            "OK" if "OK" in result or "n/a" in result else f"✗ {result}"))
+            "✓ 端口已设置，需重启 SQL 生效" if "OK" in result or "n/a" in result else f"✗ {result}"))
 
     def _save_all(self) -> None:
         if not self._project:
@@ -152,7 +164,6 @@ class SQLPage(ctk.CTkFrame):
         except ValueError:
             pass
 
-        # Save to project.json
         self._project.save_json()
 
         mode = SqlListenMode.ALL if listen == "0.0.0.0" else SqlListenMode.LOCAL
@@ -164,7 +175,38 @@ class SQLPage(ctk.CTkFrame):
             return
         result = set_sql_listen_mode(mode, self._project.settings.sql.instance)
         self.after(0, lambda: self._set_status(
-            "✓ 配置已保存" if "OK" in result or "n/a" in result else f"✗ {result}"))
+            "✓ 配置已保存，需重启 SQL 生效" if "OK" in result or "n/a" in result else f"✗ {result}"))
+
+    def _save_and_restart(self) -> None:
+        if not self._project:
+            return
+        listen = self._listen_var.get()
+        self._project.settings.sql.listen = listen
+        try:
+            port = int(self._port_entry.get().strip())
+            self._project.settings.sql.port = port
+        except ValueError:
+            pass
+        self._project.save_json()
+
+        self._set_status("Saving config and restarting SQL…")
+        threading.Thread(target=self._save_restart_worker, daemon=True).start()
+
+    def _save_restart_worker(self) -> None:
+        if not self._project:
+            return
+        instance = self._project.settings.sql.instance
+        listen = self._listen_var.get()
+        mode = SqlListenMode.ALL if listen == "0.0.0.0" else SqlListenMode.LOCAL
+        set_sql_listen_mode(mode, instance)
+        try:
+            port = int(self._port_entry.get().strip())
+            set_sql_port(port, instance)
+        except ValueError:
+            pass
+        result = restart_sql(instance)
+        self.after(0, lambda: self._set_status(
+            "✓ 已保存并重启" if result == "OK" else f"✗ {result}"))
 
     def _restart_sql(self) -> None:
         if not self._project:
@@ -176,4 +218,5 @@ class SQLPage(ctk.CTkFrame):
         if not self._project:
             return
         result = restart_sql(self._project.settings.sql.instance)
-        self.after(0, lambda: self._set_status(result))
+        self.after(0, lambda: self._set_status(
+            "✓ SQL 已重启" if result == "OK" else f"✗ {result}"))
