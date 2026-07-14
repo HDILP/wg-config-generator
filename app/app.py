@@ -18,6 +18,7 @@ from app.theme import apply_theme
 from app.workspace import WorkspaceMode, nav_for_mode, NavItem
 from core.project_manager import ProjectManager
 from core.wg_keygen import check_wg_available
+from app.server_project import load_local_server
 from models.app_settings import AppSettings
 from models.project import Project
 from pages import (
@@ -58,15 +59,16 @@ class GPServerManager(ctk.CTk):
 
         # Check WireGuard
         self._wg_error = check_wg_available()
+        self._server_project: Optional[Project] = (
+            load_local_server() if workspace == WorkspaceMode.SERVER else None
+        )
 
         # Layout
         self._build_layout()
 
         # Show start page
-        if self._wg_error and workspace == WorkspaceMode.SERVER:
-            self._show_wg_error()
-        else:
-            self._nav_to_home()
+        # WireGuard is optional: the other local-server tools stay available.
+        self._nav_to_home()
 
     @property
     def workspace(self) -> WorkspaceMode:
@@ -254,13 +256,13 @@ class GPServerManager(ctk.CTk):
             return
         self._current_page = "show_sql"
         self._update_nav("show_sql")
-        self._switch_to(SQLPage, self, None)
+        self._switch_to(SQLPage, self, self._server_project)
 
     def show_wireguard(self) -> None:
         self._current_page = "show_wireguard"
         self._update_nav("show_wireguard")
         if self._workspace == WorkspaceMode.SERVER:
-            self._switch_to(WireGuardServerPage, self)
+            self._switch_to(WireGuardServerPage, self, self._server_project)
         else:
             self._switch_to(WireGuardClientPage, self)
 
@@ -269,14 +271,14 @@ class GPServerManager(ctk.CTk):
             return
         self._current_page = "show_firewall"
         self._update_nav("show_firewall")
-        self._switch_to(FirewallPage, self, None)
+        self._switch_to(FirewallPage, self, self._server_project)
 
     def show_backup(self) -> None:
         if self._workspace != WorkspaceMode.SERVER:
             return
         self._current_page = "show_backup"
         self._update_nav("show_backup")
-        self._switch_to(BackupCenterPage, self, None)
+        self._switch_to(BackupCenterPage, self, self._server_project)
 
     def show_services(self) -> None:
         if self._workspace != WorkspaceMode.SERVER:

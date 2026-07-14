@@ -1,155 +1,76 @@
-"""Server Dashboard — real-time server status for Server Mode."""
+"""Overview of the machine managed in Server Mode."""
 from __future__ import annotations
 
+import threading
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
-import threading
 
 from app.workspace import WorkspaceMode
 from core.wg_keygen import check_wg_available
+from services.sql_service import get_sql_info
 from services.system_service import get_system_info
-from widgets import CardFrame, StatusIndicator
+from services.wireguard_service import wg_interfaces
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
 
 
-def _svc_status(name: str) -> str:
-    """Check Windows service status via sc query."""
-    import subprocess, sys
-    if sys.platform != "win32":
-        return "unknown"
-    try:
-        r = subprocess.run(["sc", "query", name], capture_output=True,
-                           text=True, timeout=10)
-        return "ok" if "RUNNING" in r.stdout else "error"
-    except Exception:
-        return "unknown"
-
-
-def _fw_status() -> str:
-    """Check if Windows Firewall is on via current profile state."""
-    import subprocess, sys
-    if sys.platform != "win32":
-        return "unknown"
-    try:
-        r = subprocess.run(["netsh", "advfirewall", "show", "currentprofile", "state"],
-                           capture_output=True, text=True, timeout=10)
-        return "ok" if "ON" in r.stdout.upper() else "error"
-    except Exception:
-        return "unknown"
-
-
-def _backup_status() -> str:
-    """Check if any GP Backup scheduled task exists."""
-    import subprocess, sys
-    if sys.platform != "win32":
-        return "unknown"
-    try:
-        r = subprocess.run(["schtasks", "/query", "/tn", "GPBackup*"],
-                           capture_output=True, text=True, timeout=10)
-        return "ok" if "GPBackup" in r.stdout else "warning"
-    except Exception:
-        return "unknown"
-
-
 class ServerDashboardPage(ctk.CTkFrame):
-    """Server mode dashboard: real-time CPU, memory, disk, service status."""
     WORKSPACE = WorkspaceMode.SERVER
 
     def __init__(self, master, app: GPServerManager, **kwargs):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)
         self._app = app
-        self._indicators: dict[str, StatusIndicator] = {}
+        self._values: dict[str, ctk.CTkLabel] = {}
         self._build()
 
     def _build(self) -> None:
-        ctk.CTkLabel(
-            self, text="Server Dashboard",
-            font=ctk.CTkFont(size=22, weight="bold"),
-        ).pack(anchor="w", padx=24, pady=(20, 16))
-
-        main = ctk.CTkFrame(self, fg_color="transparent")
-        main.pack(fill="both", expand=True, padx=24)
-
-        left = ctk.CTkFrame(main, fg_color="transparent")
-        left.pack(side="left", fill="both", expand=True, padx=(0, 12))
-
-        right = ctk.CTkFrame(main, fg_color="transparent")
-        right.pack(side="right", fill="both", expand=True, padx=(12, 0))
-
-        # Left column: service cards
-        svc_card = CardFrame(left, title="服务状态")
-        svc_card.pack(fill="x", pady=(0, 12))
-
-        for label, key in [
-            ("SQL Server", "sql"),
-            ("WireGuard", "wireguard"),
-            ("Windows 防火墙", "firewall"),
-            ("自动备份", "backup"),
-        ]:
-            si = StatusIndicator(svc_card, label, "unknown")
-            si.pack(fill="x", padx=16, pady=4)
-            self._indicators[key] = si
-
-        # Right column: system info
-        sys_card = CardFrame(right, title="系统信息")
-        sys_card.pack(fill="x", pady=(0, 12))
-
-        self._sys_rows = {}
-        for label in ["CPU", "内存", "磁盘", "网络"]:
-            row = ctk.CTkFrame(sys_card, fg_color="transparent")
-            row.pack(fill="x", padx=16, pady=3)
-            ctk.CTkLabel(row, text=label, font=ctk.CTkFont(size=12),
-                         text_color="#79747E", width=60).pack(side="left")
-            val = ctk.CTkLabel(row, text="—", font=ctk.CTkFont(size=12),
-                               anchor="w")
-            val.pack(side="left", fill="x", expand=True)
-            self._sys_rows[label] = val
-
-        # Refresh button
-        ctk.CTkButton(
-            self, text="🔄 刷新状态", width=120,
-            font=ctk.CTkFont(size=12),
-            command=self._refresh,
-        ).pack(anchor="w", padx=24, pady=(8, 4))
-
-        self._status = ctk.CTkLabel(
-            self, text="", font=ctk.CTkFont(size=11), text_color="#79747E",
-        )
-        self._status.pack(pady=(4, 8))
-
-        # Auto-refresh on startup
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.pack(fill="x", padx=24, pady=(20, 12))
+        ctk.CTkLabel(header, text="Server Dashboard", font=ctk.CTkFont(size=22, weight="bold")).pack(side="left")
+        ctk.CTkButton(header, text="Refresh", width=90, command=self._refresh).pack(side="right")
+        grid = ctk.CTkFrame(self, fg_color="transparent")
+        grid.pack(fill="both", expand=True, padx=24)
+        grid.grid_columnconfigure((0, 1), weight=1)
+        for index, (key, title) in enumerate([
+            ("system", "System"), ("sql", "SQL Server"), ("wireguard", "WireGuard"), ("network", "Network"),
+        ]):
+            card = ctk.CTkFrame(grid, corner_radius=12)
+            card.grid(row=index // 2, column=index % 2, sticky="nsew", padx=6, pady=6)
+            ctk.CTkLabel(card, text=title, font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=16, pady=(14, 6))
+            value = ctk.CTkLabel(card, text="Loading...", justify="left", anchor="w", text_color="#79747E")
+            value.pack(fill="both", expand=True, padx=16, pady=(0, 14))
+            self._values[key] = value
+        self._status = ctk.CTkLabel(self, text="", text_color="#79747E")
+        self._status.pack(pady=8)
         self._refresh()
 
-    def _set_status(self, text: str) -> None:
-        self._status.configure(text=text)
-
     def _refresh(self) -> None:
-        self._set_status("加载中…")
+        self._status.configure(text="Refreshing local server status...")
         threading.Thread(target=self._refresh_worker, daemon=True).start()
 
     def _refresh_worker(self) -> None:
-        try:
-            # System info
-            info = get_system_info()
-            def _set(k, v):
-                self._sys_rows[k].configure(text=f"{v}%" if v else "N/A")
-            self.after(0, lambda: _set("CPU", info.cpu_percent))
-            self.after(0, lambda: _set("内存", info.memory_percent))
-            self.after(0, lambda: _set("磁盘", info.disk_percent))
+        info = get_system_info()
+        sql = get_sql_info(self._app._server_project.settings.sql.instance)
+        wg_error = check_wg_available()
+        if wg_error:
+            wireguard = "Not installed or unavailable"
+        else:
+            try:
+                interfaces = wg_interfaces()
+                wireguard = f"Active tunnels: {len(interfaces)}\n" + (", ".join(interfaces) if interfaces else "No tunnel is active")
+            except Exception as exc:
+                wireguard = f"Status unavailable: {exc}"
+        values = {
+            "system": f"{info.hostname}\n{info.os_version}\nCPU: {info.cpu_percent}%   Memory: {info.memory_percent}%\nDisk: {info.disk_percent}%   Uptime: {info.uptime_days} days",
+            "sql": f"Instance: {self._app._server_project.settings.sql.instance}\nService: {sql.state}\nAgent: {sql.agent_state}\nTCP: {'enabled' if sql.tcp_enabled else 'disabled'}   Port: {sql.port}",
+            "wireguard": wireguard,
+            "network": f"Local IP: {info.ip_addresses or 'unavailable'}\nConfigured backup path: {self._app._server_project.settings.backup.save_path}",
+        }
+        self.after(0, lambda: self._apply(values))
 
-            # Service statuses
-            svc_map = {
-                "sql": _svc_status("MSSQLSERVER"),
-                "wireguard": "ok" if not check_wg_available() else "error",
-                "firewall": _fw_status(),
-                "backup": _backup_status(),
-            }
-            for key, status in svc_map.items():
-                self.after(0, lambda k=key, s=status: self._indicators[k].set_status(s))
-
-            self.after(0, lambda: self._set_status("✓ 已刷新"))
-        except Exception as exc:
-            self.after(0, lambda: self._set_status(f"✗ {exc}"))
+    def _apply(self, values: dict[str, str]) -> None:
+        for key, value in values.items():
+            self._values[key].configure(text=value)
+        self._status.configure(text="Local server status refreshed")

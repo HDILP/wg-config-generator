@@ -21,11 +21,11 @@ class FirewallRule:
     action: str = "Allow"
 
 
-def _netsh(args: str) -> str:
+def _netsh(args: list[str]) -> str:
     import subprocess
     try:
         r = subprocess.run(
-            ["netsh", "advfirewall", "firewall"] + args.split(),
+            ["netsh", "advfirewall", "firewall"] + args,
             capture_output=True, text=True, timeout=15,
             encoding="utf-8", errors="replace",
         )
@@ -67,7 +67,7 @@ def list_rules() -> List[FirewallRule]:
             FirewallRule(name="SMB (dev mock)", enabled=False, local_port="445"),
         ]
 
-    raw = _netsh("show rule name=all dir=in")
+    raw = _netsh(["show", "rule", "name=all", "dir=in"])
     rules: List[FirewallRule] = []
     current: Optional[FirewallRule] = None
     for line in raw.splitlines():
@@ -104,17 +104,15 @@ def add_rule(
     if sys.platform != "win32":
         return "n/a (non-Windows)"
 
-    return _netsh(
-        f'add rule name="{name}" dir=in protocol={protocol} '
-        f"localport={port} action={action}"
-    )
+    return _netsh(["add", "rule", f"name={name}", "dir=in",
+                   f"protocol={protocol}", f"localport={port}", f"action={action}"])
 
 
 def remove_rule(name: str) -> str:
     """Remove a firewall rule by name."""
     if sys.platform != "win32":
         return "n/a (non-Windows)"
-    return _netsh(f'delete rule name="{name}" dir=in')
+    return _netsh(["delete", "rule", f"name={name}", "dir=in"])
 
 
 def enable_rule(name: str) -> str:
@@ -122,14 +120,14 @@ def enable_rule(name: str) -> str:
     if sys.platform != "win32":
         return "n/a (non-Windows)"
     # netsh doesn't have enable/disable directly; we use the rule name
-    return _netsh(f"set rule name=\"{name}\" new enable=Yes")
+    return _netsh(["set", "rule", f"name={name}", "new", "enable=Yes"])
 
 
 def disable_rule(name: str) -> str:
     """Disable a firewall rule."""
     if sys.platform != "win32":
         return "n/a (non-Windows)"
-    return _netsh(f"set rule name=\"{name}\" new enable=No")
+    return _netsh(["set", "rule", f"name={name}", "new", "enable=No"])
 
 
 def apply_well_known(name: str, enabled: bool) -> str:
@@ -140,6 +138,10 @@ def apply_well_known(name: str, enabled: bool) -> str:
 
     rule_name = f"GP Server Manager - {name} ({port})"
     if enabled:
+        # Adding duplicate rules makes a later disable ambiguous.  Re-enable
+        # the managed rule when it already exists.
+        if is_rule_enabled(rule_name):
+            return enable_rule(rule_name)
         return add_rule(rule_name, port)
     else:
         return remove_rule(rule_name)

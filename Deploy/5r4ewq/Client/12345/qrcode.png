@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="white"/>
+  <text x="100" y="100" text-anchor="middle" font-size="12"
+        font-family="monospace" fill="black">
+    QR: Install qrcode[pil] to render
+  </text>
+  <text x="100" y="130" text-anchor="middle" font-size="8"
+        font-family="monospace" fill="#666">
+    [Interface]
+PrivateKey = eFMeqqK3tr20dDxD7UJf5zHG7...
+  </text>
+</svg>

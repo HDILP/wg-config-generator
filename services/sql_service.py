@@ -300,8 +300,40 @@ def restart_sql(instance: str = "MSSQLSERVER") -> str:
     return "✗ SHUTDOWN 后服务未自动重启"
 
 
+def restart_sql(instance: str = "MSSQLSERVER") -> str:
+    """Restart the database engine through SCM and verify its final state."""
+    if sys.platform != "win32":
+        return "n/a (non-Windows)"
+    svc_name = _instance_service(instance)
+    try:
+        state = _service_state(svc_name)
+        if state == "Unknown":
+            return f"error: service '{svc_name}' was not found"
+        if state == "Running":
+            subprocess.run(["sc", "stop", svc_name], capture_output=True, timeout=30)
+            if not _wait_for_service_state(svc_name, "Stopped", timeout=60):
+                return "error: SQL Server did not stop within 60 seconds"
+        subprocess.run(["sc", "start", svc_name], capture_output=True, timeout=30)
+        if _wait_for_service_state(svc_name, "Running", timeout=90):
+            return "OK"
+        return "error: SQL Server did not start within 90 seconds"
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"error: {exc}"
+
+
 def restart_sql_agent(instance: str = "MSSQLSERVER") -> str:
     """Restart SQL Server Agent service."""
     if sys.platform != "win32":
         return "n/a (non-Windows)"
-    return _restart_service(_agent_service(instance))
+    service = _agent_service(instance)
+    try:
+        if _service_state(service) == "Unknown":
+            return f"error: service '{service}' was not found"
+        if _service_state(service) == "Running":
+            subprocess.run(["sc", "stop", service], capture_output=True, timeout=30)
+            if not _wait_for_service_state(service, "Stopped", timeout=60):
+                return "error: SQL Agent did not stop within 60 seconds"
+        subprocess.run(["sc", "start", service], capture_output=True, timeout=30)
+        return "OK" if _wait_for_service_state(service, "Running", timeout=60) else "error: SQL Agent did not start within 60 seconds"
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return f"error: {exc}"

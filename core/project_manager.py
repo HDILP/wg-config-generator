@@ -31,7 +31,8 @@ class ProjectManager:
             return []
         out: List[str] = []
         for d in sorted(ProjectManager.PROJECTS_DIR.iterdir()):
-            if d.is_dir() and (d / "project.json").exists():
+            if (d.is_dir() and d.name != "__local_server__"
+                    and (d / "project.json").exists()):
                 out.append(d.name)
         return out
 

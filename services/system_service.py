@@ -6,6 +6,7 @@ import platform
 import socket
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -102,19 +103,48 @@ def get_system_info() -> SystemInfo:
     return info
 
 
+def service_state(service_name: str) -> str:
+    """Return Running, Stopped, or Unknown for a Windows service."""
+    if sys.platform != "win32":
+        return "Unknown"
+    try:
+        result = subprocess.run(["sc", "query", service_name], capture_output=True,
+                                text=True, timeout=15, encoding="utf-8", errors="replace")
+        output = (result.stdout + result.stderr).upper()
+        if "RUNNING" in output:
+            return "Running"
+        if "STOPPED" in output:
+            return "Stopped"
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return "Unknown"
+
+
 def restart_service(service_name: str) -> str:
-    """Restart a Windows service (or return message on other platforms)."""
+    """Restart a Windows service and verify that it reaches Running."""
     if sys.platform != "win32":
         return f"n/a: restart '{service_name}' is Windows-only"
 
     import subprocess
     try:
-        r = subprocess.run(
-            ["sc", service_name, "stop"], capture_output=True, text=True, timeout=30,
-        )
-        r = subprocess.run(
-            ["sc", service_name, "start"], capture_output=True, text=True, timeout=30,
-        )
-        return f"Service '{service_name}' restarted"
-    except Exception as exc:
+        state = service_state(service_name)
+        if state == "Unknown":
+            return f"Service '{service_name}' was not found or cannot be queried"
+        if state == "Running":
+            subprocess.run(["sc", "stop", service_name], capture_output=True,
+                           text=True, timeout=30, encoding="utf-8", errors="replace")
+            for _ in range(30):
+                if service_state(service_name) == "Stopped":
+                    break
+                time.sleep(1)
+            else:
+                return f"Timed out stopping '{service_name}'"
+        subprocess.run(["sc", "start", service_name], capture_output=True,
+                       text=True, timeout=30, encoding="utf-8", errors="replace")
+        for _ in range(30):
+            if service_state(service_name) == "Running":
+                return f"Service '{service_name}' restarted"
+            time.sleep(1)
+        return f"Timed out starting '{service_name}'"
+    except (OSError, subprocess.TimeoutExpired) as exc:
         return f"Failed: {exc}"
