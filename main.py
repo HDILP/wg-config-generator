@@ -19,7 +19,25 @@ from models.app_settings import AppSettings
 from app.workspace import WorkspaceMode
 
 
+def _require_admin() -> None:
+    """Relaunch as admin via UAC if not already elevated."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        if ctypes.windll.shell32.IsUserAnAdmin():
+            return
+        result = ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", sys.executable, " ".join(sys.argv), None, 1,
+        )
+        if result > 32:  # success
+            sys.exit()
+    except (AttributeError, ImportError):
+        pass
+
+
 def main() -> None:
+    _require_admin()
     settings = AppSettings.load()
 
     # Determine workspace mode
