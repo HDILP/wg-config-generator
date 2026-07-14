@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 from tkinter import messagebox
 from typing import TYPE_CHECKING, Optional
 
@@ -250,38 +251,53 @@ class WireGuardClientPage(ctk.CTkFrame):
             return
         self._set_status("正在生成部署包…")
         def _work():
-            for target, is_win7 in res:
-                self._generate_deploy(target, is_win7)
+            created = []
+            try:
+                for target, is_win7 in res:
+                    zip_name = self._generate_deploy(target, is_win7)
+                    if zip_name:
+                        created.append(zip_name)
+                if created:
+                    deploy_dir = Path(__file__).resolve().parent.parent / "Deploy"
+                    self.after(0, lambda: open_folder(deploy_dir))
+                    self.after(0, lambda: self._set_status(
+                        f"✓ 已生成 {len(created)} 个部署包"))
+                else:
+                    self.after(0, lambda: self._set_status("✗ 没有生成任何部署包"))
+            except Exception as exc:
+                error_text = str(exc)
+                self.after(0, lambda: self._set_status(
+                    f"✗ 部署包生成失败：{error_text}"))
         threading.Thread(target=_work, daemon=True).start()
 
-    def _generate_deploy(self, target: str, is_win7: bool) -> None:
+    def _generate_deploy(self, target: str, is_win7: bool) -> Optional[str]:
         """Generate a ZIP for one target (server or client name)."""
-        from pathlib import Path
         import shutil, zipfile, tempfile
 
         p = self._project
         if not p:
             return
 
-        tmp = Path(tempfile.mkdtemp())
-        os_label = "win7" if is_win7 else "win10"
+        tmp = Path(tempfile.mkdtemp(prefix="gp-deploy-"))
+        try:
+            os_label = "win7" if is_win7 else "win10"
 
-        if target == "server":
-            folder = tmp / "Server"
-            folder.mkdir()
-            write_text(folder / "server.conf", ProjectManager.export_server_conf(p))
-            installer_src = Path(__file__).resolve().parent.parent / "wireguard-installer.exe"
-            if installer_src.exists():
-                shutil.copy2(installer_src, folder / "WireGuard.exe")
-            if is_win7:
-                _write_win7_batch(folder)
-                kbs_dir = Path(__file__).resolve().parent.parent / "assets" / "kbs"
-                if kbs_dir.exists():
-                    for f in kbs_dir.iterdir():
-                        if f.suffix == ".msu":
-                            shutil.copy2(f, folder)
-            write_text(folder / "README.txt",
-                       f"""Server: {p.name}
+            if target == "__server__":
+                folder = tmp / "Server"
+                folder.mkdir()
+                write_text(folder / "server.conf", ProjectManager.export_server_conf(p))
+                installer_src = Path(__file__).resolve().parent.parent / "wireguard-installer.exe"
+                if installer_src.exists():
+                    shutil.copy2(installer_src, folder / "WireGuard.exe")
+                if is_win7:
+                    _write_win7_batch(folder)
+                    kbs_dir = Path(__file__).resolve().parent.parent / "assets" / "kbs"
+                    if kbs_dir.exists():
+                        for f in kbs_dir.iterdir():
+                            if f.suffix == ".msu":
+                                shutil.copy2(f, folder)
+                write_text(folder / "README.txt",
+                           f"""Server: {p.name}
 IP: {p.settings.public_ip}
 VPN: {p.settings.vpn_ip}
 Port: {p.settings.listen_port}
@@ -290,32 +306,32 @@ Port: {p.settings.listen_port}
 2. Import server.conf
 3. Activate
 """)
-            zip_name = f"{p.name}_Server_{os_label}.zip"
-        else:
-            client = next((c for c in p.clients if c.name == target), None)
-            if not client:
-                return
-            folder = tmp / "Client"
-            folder.mkdir()
-            cfg = ProjectManager.export_client_config(p, client.name)
-            write_text(folder / "client.conf", cfg)
-            installer_src = Path(__file__).resolve().parent.parent / "wireguard-installer.exe"
-            if installer_src.exists():
-                shutil.copy2(installer_src, folder / "WireGuard.exe")
-            if is_win7:
-                _write_win7_batch(folder)
-                kbs_dir = Path(__file__).resolve().parent.parent / "assets" / "kbs"
-                if kbs_dir.exists():
-                    for f in kbs_dir.iterdir():
-                        if f.suffix == ".msu":
-                            shutil.copy2(f, folder)
-            try:
-                from core.qrcode_gen import generate_qr_code
-                generate_qr_code(cfg, folder / "qrcode.png")
-            except ImportError:
-                pass
-            write_text(folder / "README.txt",
-                       f"""{client.name}
+                zip_name = f"{p.name}_Server_{os_label}.zip"
+            else:
+                client = next((c for c in p.clients if c.name == target), None)
+                if not client:
+                    raise ValueError(f"客户端不存在：{target}")
+                folder = tmp / "Client"
+                folder.mkdir()
+                cfg = ProjectManager.export_client_config(p, client.name)
+                write_text(folder / "client.conf", cfg)
+                installer_src = Path(__file__).resolve().parent.parent / "wireguard-installer.exe"
+                if installer_src.exists():
+                    shutil.copy2(installer_src, folder / "WireGuard.exe")
+                if is_win7:
+                    _write_win7_batch(folder)
+                    kbs_dir = Path(__file__).resolve().parent.parent / "assets" / "kbs"
+                    if kbs_dir.exists():
+                        for f in kbs_dir.iterdir():
+                            if f.suffix == ".msu":
+                                shutil.copy2(f, folder)
+                try:
+                    from core.qrcode_gen import generate_qr_code
+                    generate_qr_code(cfg, folder / "qrcode.png")
+                except ImportError:
+                    pass
+                write_text(folder / "README.txt",
+                           f"""{client.name}
 VPN: {client.vpn_ip}
 Server: {p.settings.public_ip}:{p.settings.listen_port}
 
@@ -323,19 +339,18 @@ Server: {p.settings.public_ip}:{p.settings.listen_port}
 2. Import client.conf
 3. Activate
 """)
-            zip_name = f"{p.name}_{client.name}_{os_label}.zip"
+                zip_name = f"{p.name}_{client.name}_{os_label}.zip"
 
-        deploy_dir = Path("Deploy")
-        deploy_dir.mkdir(exist_ok=True)
-        zip_path = deploy_dir / zip_name
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            for f in folder.rglob("*"):
-                zf.write(f, f.relative_to(tmp))
-
-        shutil.rmtree(tmp, ignore_errors=True)
-
-        self.after(0, lambda: open_folder(deploy_dir))
-        self.after(0, lambda: self._set_status(f"✓ {zip_name}"))
+            deploy_dir = Path(__file__).resolve().parent.parent / "Deploy"
+            deploy_dir.mkdir(parents=True, exist_ok=True)
+            zip_path = deploy_dir / zip_name
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for f in folder.rglob("*"):
+                    if f.is_file():
+                        zf.write(f, f.relative_to(tmp))
+            return zip_name
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 
@@ -421,7 +436,7 @@ class _DeployDialog(ctk.CTkToplevel):
 
         self._rows: list[tuple[str, ctk.BooleanVar, ctk.StringVar]] = []
 
-        def _deploy_row(label: str, default_checked: bool):
+        def _deploy_row(target: str, label: str, default_checked: bool):
             row = ctk.CTkFrame(scroll)
             row.pack(fill="x", pady=3)
             var = ctk.BooleanVar(value=default_checked)
@@ -433,11 +448,11 @@ class _DeployDialog(ctk.CTkToplevel):
                                ).pack(side="right", padx=(0, 4))
             ctk.CTkRadioButton(row, text="Win7/Server2012", variable=osv, value="win7",
                                ).pack(side="right", padx=(0, 18))
-            return label, var, osv
+            return target, var, osv
 
-        self._rows.append(_deploy_row("服务器", True))
+        self._rows.append(_deploy_row("__server__", "服务器", True))
         for c in project.clients:
-            self._rows.append(_deploy_row(c.name, False))
+            self._rows.append(_deploy_row(c.name, c.name, False))
 
         btn_f = ctk.CTkFrame(self, fg_color="transparent")
         btn_f.pack(fill="x", padx=20, pady=(12, 12))
