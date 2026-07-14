@@ -53,6 +53,10 @@ class BackupCenterPage(ctk.CTkFrame):
         self._mp_buttons: Dict[str, ctk.CTkButton] = {}
         self._build()
 
+    def destroy(self) -> None:
+        self._alive = False
+        super().destroy()
+
     def refresh(self) -> None:
         if not self._project:
             return
