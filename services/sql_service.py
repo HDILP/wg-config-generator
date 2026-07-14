@@ -224,36 +224,34 @@ def get_sql_info(instance: str = "MSSQLSERVER") -> SqlInstanceInfo:
     # Registry reads — reg.exe only (PS path had "HKLM:HKLM\..." bug)
     rp = _reg_path(instance)
 
-    # Live port + TCP status + listen mode via DMV (works for all connection types)
+    # Port from registry
+    port_raw = _reg_read_string(rp, "TcpPort")
+    if port_raw and not port_raw.startswith("<error:"):
+        try:
+            info.port = int(port_raw)
+        except ValueError:
+            pass
+    # Tcp subkey exists with TcpPort → TCP enabled
+    info.tcp_enabled = True
+    # Listen mode (ListenAll may not exist, defaults to 127.0.0.1)
+    listen_raw = _reg_read_string(rp, "ListenAll")
+    info.listen_mode = SqlListenMode.ALL if listen_raw.strip() == "1" else SqlListenMode.LOCAL
+
+    # Optional sqlcmd verification — best-effort, never overrides registry
     addr = _server(instance)
-    logger.info("Querying live listener state via sqlcmd -S %s", addr)
     try:
         r = subprocess.run(
             ["sqlcmd", "-S", addr, "-E", "-h", "-1", "-Q",
-             "SET NOCOUNT ON; SELECT port, ip_address FROM sys.dm_tcp_listener_states WHERE type = 2 AND state = 1"],
-            capture_output=True, text=True, timeout=10,
+             "SET NOCOUNT ON; SELECT local_tcp_port FROM sys.dm_exec_connections WHERE session_id = @@SPID"],
+            capture_output=True, text=True, timeout=5,
             encoding="utf-8", errors="replace",
         )
         for line in r.stdout.splitlines():
             line = line.strip()
-            if not line:
-                continue
-            parts = line.split()
-            if len(parts) >= 1 and parts[0].isdigit():
-                info.port = int(parts[0])
-                info.tcp_enabled = True
-            if len(parts) >= 2 and parts[1]:
-                info.listen_mode = SqlListenMode.ALL if parts[1] == "0.0.0.0" else SqlListenMode.LOCAL
-            break  # first row is sufficient
-    except Exception as exc:
-        logger.warning("sqlcmd listener query failed, fallback to registry: %s", exc)
-        # Fallback: registry (port at least)
-        port_raw = _reg_read_string(rp, "TcpPort")
-        if port_raw and not port_raw.startswith("<error:"):
-            try:
-                info.port = int(port_raw)
-            except ValueError:
-                pass
+            if line.isdigit() and 1 <= int(line) <= 65535:
+                info.port = int(line)
+    except Exception:
+        pass
 
     # Version
     ver_path = _version_reg_path(instance)
