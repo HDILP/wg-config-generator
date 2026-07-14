@@ -292,41 +292,21 @@ def set_sql_listen_mode(mode: SqlListenMode, instance: str = "MSSQLSERVER") -> s
 
 
 def restart_sql(instance: str = "MSSQLSERVER") -> str:
-    """Restart SQL Server. sc.exe first, fallback to T-SQL SHUTDOWN (bypasses ACL)."""
+    """Restart SQL Server via sc.exe (UAC elevation handles permissions)."""
     if sys.platform != "win32":
         return "n/a (non-Windows)"
-
     svc_name = _instance_service(instance)
-    addr = _server(instance)
-
-    # Try sc stop (native, works when elevated)
     r = subprocess.run(["sc", "stop", svc_name], capture_output=True, text=True, timeout=15)
-    if r.returncode == 0:
-        if _wait_for_service_state(svc_name, "Stopped"):
-            r = subprocess.run(["sc", "start", svc_name], capture_output=True, text=True, timeout=15)
-            if r.returncode == 0 and _wait_for_service_state(svc_name, "Running"):
-                return "OK"
-            return f"✗ sc start: {r.stderr.strip() or r.stdout.strip()}"
+    if r.returncode != 0:
+        return f"✗ sc stop: {r.stderr.strip() or r.stdout.strip()}"
+    if not _wait_for_service_state(svc_name, "Stopped"):
         return f"✗ 停止超时"
-    logger.warning("sc stop denied, trying T-SQL SHUTDOWN via %s", addr)
-
-    # Fallback: SHUTDOWN WITH NOWAIT via sqlcmd (sysadmin role, not Windows ACL)
-    try:
-        subprocess.run(
-            ["sqlcmd", "-S", addr, "-E", "-Q", "SHUTDOWN WITH NOWAIT"],
-            capture_output=True, timeout=60,
-        )
-    except Exception:
-        pass
-
-    # Service will auto-restart if configured as Automatic
-    for _ in range(60):
-        state = _service_state(svc_name)
-        if state == "Running":
-            return "OK"
-        if state != "Unknown":
-            time.sleep(1)
-    return "✗ SHUTDOWN 后服务未自动重启"
+    r = subprocess.run(["sc", "start", svc_name], capture_output=True, text=True, timeout=15)
+    if r.returncode != 0:
+        return f"✗ sc start: {r.stderr.strip() or r.stdout.strip()}"
+    if not _wait_for_service_state(svc_name, "Running"):
+        return f"✗ 启动超时"
+    return "OK"
 
 
 def restart_sql_agent(instance: str = "MSSQLSERVER") -> str:
