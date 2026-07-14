@@ -296,6 +296,17 @@ def _restart_service(svc_name: str) -> str:
     try:
         r = subprocess.run(["sc", "stop", svc_name], capture_output=True, text=True, timeout=15)
         if r.returncode != 0:
+            stderr = (r.stderr or "").lower()
+            if "access" in stderr or "denied" in stderr or "拒绝" in stderr:
+                # Fallback: WMI via PowerShell (different security context)
+                logger.warning("sc stop denied, trying WMI for %s", svc_name)
+                wmi = _powershell(
+                    f"$s=Get-WmiObject Win32_Service -Filter \"Name='{svc_name}'\"; "
+                    f"$s.StopService(); Start-Sleep 2; "
+                    f"$s.StartService(); echo 'OK'",
+                )
+                if "OK" in wmi:
+                    return "OK"
             return f"✗ sc stop failed: {r.stderr.strip() or r.stdout.strip()}"
         if not _wait_for_service_state(svc_name, "Stopped"):
             return f"✗ {svc_name} 停止超时"
