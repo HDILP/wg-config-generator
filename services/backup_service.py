@@ -145,21 +145,19 @@ $lines -join "`n"
 
 
 def check_compression_support(instance: str = "MSSQLSERVER") -> bool:
-    """Check if SQL Server version supports backup compression."""
+    """Check if SQL Server supports backup compression via sqlcmd."""
     if sys.platform != "win32":
         return True
-
-    script = f"""
-$conn = New-Object System.Data.SqlClient.SqlConnection("{_conn_str(instance)}")
-$conn.Open()
-$cmd = $conn.CreateCommand()
-$cmd.CommandText = "SELECT SERVERPROPERTY('IsCompressedBackupSupported')"
-$result = $cmd.ExecuteScalar()
-$conn.Close()
-if ($result -eq 1) {{ "True" }} else {{ "False" }}
-"""
-    out, _ = _ps(script, timeout=10)
-    return "True" in out
+    try:
+        r = subprocess.run(
+            ["sqlcmd", "-S", _server(instance), "-E", "-h", "-1",
+             "-Q", "SET NOCOUNT ON; SELECT value FROM sys.configurations WHERE name = 'backup compression default'"],
+            capture_output=True, text=True, timeout=10,
+            encoding="utf-8", errors="replace",
+        )
+        return r.stdout.strip() == "1"
+    except Exception:
+        return False
 
 
 # ═════════════════════════════════════════════════════════════════
