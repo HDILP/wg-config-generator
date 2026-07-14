@@ -292,22 +292,21 @@ def set_sql_listen_mode(mode: SqlListenMode, instance: str = "MSSQLSERVER") -> s
 
 
 def _restart_service(svc_name: str) -> str:
-    """Stop → wait → start → wait. Reused for engine + agent. Returns 'OK' or error."""
-    if _has_powershell():
-        result = _powershell(
-            f'Restart-Service -Name "{svc_name}" -Force -ErrorAction Stop; '
-            f"echo 'Restarted'"
-        )
-        return "OK" if "Restarted" in result else f"✗ {result}"
-
-    # cmd route: synchronous by polling
-    _cmd(["sc", "stop", svc_name])
-    if not _wait_for_service_state(svc_name, "Stopped"):
-        return f"✗ {svc_name} 停止超时"
-    _cmd(["sc", "start", svc_name])
-    if not _wait_for_service_state(svc_name, "Running"):
-        return f"✗ {svc_name} 启动超时"
-    return "OK"
+    """Stop → wait → start → wait via sc.exe (native, always available)."""
+    try:
+        r = subprocess.run(["sc", "stop", svc_name], capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            return f"✗ sc stop failed: {r.stderr.strip() or r.stdout.strip()}"
+        if not _wait_for_service_state(svc_name, "Stopped"):
+            return f"✗ {svc_name} 停止超时"
+        r = subprocess.run(["sc", "start", svc_name], capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            return f"✗ sc start failed: {r.stderr.strip() or r.stdout.strip()}"
+        if not _wait_for_service_state(svc_name, "Running"):
+            return f"✗ {svc_name} 启动超时"
+        return "OK"
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
+        return f"✗ {exc}"
 
 
 def restart_sql(instance: str = "MSSQLSERVER") -> str:
