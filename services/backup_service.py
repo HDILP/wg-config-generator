@@ -248,14 +248,20 @@ $conn.Open()
 $cmd = $conn.CreateCommand()
 $cmd.CommandTimeout = {timeout}
 $cmd.CommandText = '{sq}'
-$rdr = $cmd.ExecuteReader()
-$lines = @()
-do {{ while ($rdr.Read()) {{
-    $vals = for ($i=0; $i -lt $rdr.FieldCount; $i++) {{ $rdr.GetValue($i).ToString() }}
-    $lines += ($vals -join "|")
-}} }} while ($rdr.NextResult())
-$rdr.Close(); $conn.Close()
-$lines -join "`n"
+if ($cmd.CommandText.TrimStart().StartsWith('SELECT') -or $cmd.CommandText.TrimStart().StartsWith('EXEC')) {{
+    $rdr = $cmd.ExecuteReader()
+    $lines = @()
+    do {{ while ($rdr.Read()) {{
+        $vals = for ($i=0; $i -lt $rdr.FieldCount; $i++) {{ $rdr.GetValue($i).ToString() }}
+        $lines += ($vals -join "|")
+    }} }} while ($rdr.NextResult())
+    $rdr.Close()
+    $lines -join "`n"
+}} else {{
+    $cmd.ExecuteNonQuery() | Out-Null
+    "OK"
+}}
+$conn.Close()
 """
         out, err = _ps(script, timeout=timeout + 30)
         if out and not out.startswith("<error"):
@@ -458,6 +464,7 @@ def _read_history(project: Project) -> List[Dict]:
 
 
 def _write_history(project: Project, entries: List[Dict]) -> None:
+    ensure_dir(_history_path(project).parent)
     write_json(_history_path(project), entries)
 
 
