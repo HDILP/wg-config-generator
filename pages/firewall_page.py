@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+from tkinter import messagebox
 from typing import TYPE_CHECKING, Dict, Optional
 
 import customtkinter as ctk

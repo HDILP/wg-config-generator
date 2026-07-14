@@ -267,55 +267,28 @@ def get_sql_info(instance: str = "MSSQLSERVER") -> SqlInstanceInfo:
 def set_sql_port(port: int, instance: str = "MSSQLSERVER") -> str:
     if sys.platform != "win32":
         return "n/a (non-Windows)"
-    rp = _reg_path(instance)
-    if _has_powershell():
-        return _powershell(
-            f'Set-ItemProperty -Path "HKLM:{rp}" '
-            f'-Name TcpPort -Value "{port}" -ErrorAction Stop; echo "OK"'
-        )
-    result = _reg_set(rp, "TcpPort", str(port))
+    result = _reg_set(_reg_path(instance), "TcpPort", str(port))
     return "OK" if "error" not in result.lower() else result
 
 
 def set_sql_listen_mode(mode: SqlListenMode, instance: str = "MSSQLSERVER") -> str:
     if sys.platform != "win32":
         return "n/a (non-Windows)"
-    rp = _reg_path(instance)
-    listen_all = "1" if mode == SqlListenMode.ALL else "0"
-    if _has_powershell():
-        return _powershell(
-            f'Set-ItemProperty -Path "HKLM:{rp}" '
-            f'-Name ListenAll -Value {listen_all} -ErrorAction Stop; echo "OK"'
-        )
-    result = _reg_set(rp, "ListenAll", listen_all)
-    return "OK" if "error" not in result.lower() else result
+    r = _reg_set(_reg_path(instance), "ListenAll",
+                  "1" if mode == SqlListenMode.ALL else "0")
+    return "OK" if "error" not in r.lower() else r
 
 
 def restart_sql(instance: str = "MSSQLSERVER") -> str:
-    """Restart SQL Server. sc.exe first, fallback to T-SQL SHUTDOWN."""
+    """Restart SQL Server via T-SQL SHUTDOWN (reliable, bypasses SCM)."""
     if sys.platform != "win32":
         return "n/a (non-Windows)"
     svc_name = _instance_service(instance)
-    addr = _server(instance)
-
-    # sc stop (succeeds when service accepts control)
-    r = subprocess.run(["sc", "stop", svc_name],
-                       capture_output=True, text=True, timeout=15,
-                       encoding="utf-8", errors="replace")
-    if r.returncode == 0:
-        if _wait_for_service_state(svc_name, "Stopped"):
-            r = subprocess.run(["sc", "start", svc_name],
-                               capture_output=True, text=True, timeout=15,
-                               encoding="utf-8", errors="replace")
-            if r.returncode == 0 and _wait_for_service_state(svc_name, "Running"):
-                return "OK"
-            return f"✗ sc start: {r.stderr.strip() or r.stdout.strip()}"
-        return f"✗ 停止超时"
-
-    # sc failed (1051 means service can't accept control) → SHUTDOWN
     try:
-        subprocess.run(["sqlcmd", "-S", addr, "-E", "-Q", "SHUTDOWN WITH NOWAIT"],
-                       capture_output=True, timeout=60)
+        subprocess.run(
+            ["sqlcmd", "-S", _server(instance), "-E", "-Q", "SHUTDOWN WITH NOWAIT"],
+            capture_output=True, timeout=60,
+        )
     except Exception:
         pass
     for _ in range(60):

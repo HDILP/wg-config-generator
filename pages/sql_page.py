@@ -123,10 +123,8 @@ class SQLPage(ctk.CTkFrame):
         self.after(0, lambda: self._apply_live(live))
 
     def _apply_live(self, live) -> None:
-        self._port_entry.delete(0, "end")
-        self._port_entry.insert(0, str(live.port))
         self._listen_var.set(live.listen_mode.value)
-        self._set_status(f"SQL {live.state} | Agent {live.agent_state}")
+        self._set_status(f"SQL {live.state} | Agent {live.agent_state} | Port {live.port}")
 
     def _set_status(self, text: str) -> None:
         self._status.configure(text=text)
