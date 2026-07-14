@@ -17,9 +17,9 @@
 ### WireGuard
 - **Client Mode** — 配置生成、客户端 CRUD、VPN IP 自动分配
 - **Server Mode** — 仅显示安装状态 + 打开官方 WireGuard 客户端
-- **一键部署包** — 生成 Deploy/Server/ 和 Deploy/Client/ ZIP，含配置文件、WireGuard.exe、README
+- **一键部署包** — 生成 Deploy/Server/ 和 Deploy/Client/ ZIP，按目标系统携带对应安装程序和配置文件
 - **二维码导出** — client.conf 一键转二维码
-- **Win7 支持** — 部署包附带 KB2921916 补丁 + install_win7.bat 自动安装脚本
+- **Win7 支持** — 部署包使用 TunSafe，附带 TunSafe-TAP 和 TunSafe 主程序，无需额外安装系统补丁
 
 ### 备份中心（Backup Center）
 - **双引擎架构** — Windows 计划任务 / SQL Server Agent Job 可切换

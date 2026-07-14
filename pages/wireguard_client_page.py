@@ -17,6 +17,12 @@ if TYPE_CHECKING:
     from app.app import GPServerManager
 
 
+DEPLOY_INSTALLERS = Path(__file__).resolve().parent.parent / "assets" / "installers"
+TUNSAFE_TAP_INSTALLER = DEPLOY_INSTALLERS / "TunSafe-TAP-9.21.2.exe"
+TUNSAFE_INSTALLER = DEPLOY_INSTALLERS / "TunSafe-1.4.exe"
+WIREGUARD_MSI = DEPLOY_INSTALLERS / "wireguard-amd64-1.1.msi"
+
+
 class WireGuardClientPage(ctk.CTkFrame):
     """Client-mode WireGuard: config generation, client CRUD, export."""
     WORKSPACE = WorkspaceMode.CLIENT
@@ -286,23 +292,14 @@ class WireGuardClientPage(ctk.CTkFrame):
                 folder = tmp / "Server"
                 folder.mkdir()
                 write_text(folder / "server.conf", ProjectManager.export_server_conf(p))
-                installer_src = Path(__file__).resolve().parent.parent / "wireguard-installer.exe"
-                if installer_src.exists():
-                    shutil.copy2(installer_src, folder / "WireGuard.exe")
-                if is_win7:
-                    _write_win7_batch(folder)
-                    kbs_dir = Path(__file__).resolve().parent.parent / "assets" / "kbs"
-                    if kbs_dir.exists():
-                        for f in kbs_dir.iterdir():
-                            if f.suffix == ".msu":
-                                shutil.copy2(f, folder)
+                _copy_deploy_installers(folder, is_win7)
                 write_text(folder / "README.txt",
                            f"""Server: {p.name}
 IP: {p.settings.public_ip}
 VPN: {p.settings.vpn_ip}
 Port: {p.settings.listen_port}
 
-1. {"install_win7.bat → restart" if is_win7 else "Install WireGuard"}
+1. {_install_instructions(is_win7)}
 2. Import server.conf
 3. Activate
 """)
@@ -315,16 +312,7 @@ Port: {p.settings.listen_port}
                 folder.mkdir()
                 cfg = ProjectManager.export_client_config(p, client.name)
                 write_text(folder / "client.conf", cfg)
-                installer_src = Path(__file__).resolve().parent.parent / "wireguard-installer.exe"
-                if installer_src.exists():
-                    shutil.copy2(installer_src, folder / "WireGuard.exe")
-                if is_win7:
-                    _write_win7_batch(folder)
-                    kbs_dir = Path(__file__).resolve().parent.parent / "assets" / "kbs"
-                    if kbs_dir.exists():
-                        for f in kbs_dir.iterdir():
-                            if f.suffix == ".msu":
-                                shutil.copy2(f, folder)
+                _copy_deploy_installers(folder, is_win7)
                 try:
                     from core.qrcode_gen import generate_qr_code
                     generate_qr_code(cfg, folder / "qrcode.png")
@@ -335,7 +323,7 @@ Port: {p.settings.listen_port}
 VPN: {client.vpn_ip}
 Server: {p.settings.public_ip}:{p.settings.listen_port}
 
-1. {"install_win7.bat → restart" if is_win7 else "Install WireGuard"}
+1. {_install_instructions(is_win7)}
 2. Import client.conf
 3. Activate
 """)
@@ -353,68 +341,28 @@ Server: {p.settings.public_ip}:{p.settings.listen_port}
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+def _copy_deploy_installers(target_dir: Path, is_win7: bool) -> None:
+    """Copy the installer set matching the selected target OS."""
+    if is_win7:
+        files = (
+            (TUNSAFE_TAP_INSTALLER, target_dir / TUNSAFE_TAP_INSTALLER.name),
+            (TUNSAFE_INSTALLER, target_dir / TUNSAFE_INSTALLER.name),
+        )
+    else:
+        files = ((WIREGUARD_MSI, target_dir / WIREGUARD_MSI.name),)
 
-def _write_win7_batch(target_dir) -> None:
-    """Write install_win7.bat — checks KBs, downloads & installs missing ones."""
-    from pathlib import Path
-    write_text(target_dir / "install_win7.bat", """@echo off
-chcp 65001 >nul
-title WireGuard Win7 补丁安装
-echo ═══════════════════════════════════════
-echo   WireGuard Windows 7 补丁安装工具
-echo ═══════════════════════════════════════
-echo.
+    missing = [str(src) for src, _ in files if not src.is_file()]
+    if missing:
+        raise FileNotFoundError("部署包缺少安装文件：" + ", ".join(missing))
+    for src, dest in files:
+        import shutil
+        shutil.copy2(src, dest)
 
-:: Check KB2921916
-reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\Packages\\Package_for_KB2921916~*" >nul 2>&1
-if %errorlevel% equ 0 (
-    echo [✓] KB2921916 已安装
-    set "KB1_DONE=1"
-) else (
-    echo [✗] KB2921916 未安装
-    set "KB1_DONE=0"
-)
 
-:: Check KB3033929
-reg query "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\Packages\\Package_for_KB3033929~*" >nul 2>&1
-if %errorlevel% equ 0 (
-    echo [✓] KB3033929 已安装
-    set "KB2_DONE=1"
-) else (
-    echo [✗] KB3033929 未安装
-    set "KB2_DONE=0"
-)
-
-echo.
-
-if "%KB1_DONE%"=="1" if "%KB2_DONE%"=="1" (
-    echo 所有补丁已安装，可直接安装 WireGuard。
-    pause
-    exit /b 0
-)
-
-:: 安装补丁文件
-if "%KB1_DONE%"=="0" if exist "%~dp0KB2921916.msu" (
-    echo 安装 KB2921916...
-    wusa "%~dp0KB2921916.msu" /quiet /norestart
-    set "KB1_DONE=1"
-)
-
-if "%KB2_DONE%"=="0" (
-    echo 下载 KB3033929...
-    bitsadmin /transfer "KB3033929" /download /priority high "https://download.microsoft.com/download/c/8/7/c87ae67e-a228-48fb-8f02-b2a9a1238099/Windows6.1-KB3033929-x64.msu" "%TEMP%\\KB3033929.msu" >nul 2>&1
-    if exist "%TEMP%\\KB3033929.msu" (
-        echo 安装 KB3033929...
-        wusa "%TEMP%\\KB3033929.msu" /quiet /norestart
-    )
-)
-
-echo.
-echo ===== 安装完成 =====
-echo 请重启计算机后再安装 WireGuard。
-echo.
-pause
-""")
+def _install_instructions(is_win7: bool) -> str:
+    if is_win7:
+        return "先安装 TunSafe-TAP-9.21.2.exe，再运行 TunSafe-1.4.exe"
+    return "安装 wireguard-amd64-1.1.msi"
 
 
 class _DeployDialog(ctk.CTkToplevel):
