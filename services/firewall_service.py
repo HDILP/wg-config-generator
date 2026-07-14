@@ -27,6 +27,7 @@ def _netsh(args: str) -> str:
         r = subprocess.run(
             ["netsh", "advfirewall", "firewall"] + args.split(),
             capture_output=True, text=True, timeout=15,
+            encoding="utf-8", errors="replace",
         )
         return r.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:

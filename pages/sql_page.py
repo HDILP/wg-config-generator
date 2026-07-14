@@ -51,13 +51,17 @@ class SQLPage(ctk.CTkFrame):
             ("实例", display_instance),
             ("端口", seed_port),
         ]
+        self._port_val = None
         for label, val in fields:
             row = ctk.CTkFrame(info, fg_color="transparent")
             row.pack(fill="x", padx=16, pady=6)
             ctk.CTkLabel(row, text=label, font=ctk.CTkFont(size=13),
                          width=80).pack(side="left")
-            ctk.CTkLabel(row, text=val, font=ctk.CTkFont(size=13),
-                         text_color="#79747E").pack(side="left")
+            lbl = ctk.CTkLabel(row, text=val, font=ctk.CTkFont(size=13),
+                               text_color="#79747E")
+            lbl.pack(side="left")
+            if label == "端口":
+                self._port_val = lbl
 
         # Edit port
         port_row = ctk.CTkFrame(self, fg_color="transparent")
@@ -124,7 +128,9 @@ class SQLPage(ctk.CTkFrame):
 
     def _apply_live(self, live) -> None:
         self._listen_var.set(live.listen_mode.value)
-        self._set_status(f"SQL {live.state} | Agent {live.agent_state} | Port {live.port}")
+        if self._port_val:
+            self._port_val.configure(text=str(live.port))
+        self._set_status(f"SQL {live.state} | Agent {live.agent_state}")
 
     def _set_status(self, text: str) -> None:
         self._status.configure(text=text)
