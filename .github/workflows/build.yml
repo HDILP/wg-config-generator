@@ -14,11 +14,17 @@ jobs:
           update: true
           install: >-
             mingw-w64-x86_64-gcc
+      - name: Cache Nuitka compiled modules
+        uses: actions/cache@v4
+        with:
+          path: .nuitka-cache
+          key: ${{ runner.os }}-py${{ hashFiles('requirements.txt') }}
       - name: Install dependencies
         run: pip install -r requirements.txt nuitka
       - name: Compile with Nuitka
         run: >
           python -m nuitka --standalone --mingw64 --windows-console-mode=disable
+          --cache-dir=.nuitka-cache
           --enable-plugin=tk-inter --include-package=customtkinter
           --include-package-data=customtkinter
           --include-package=app,backup,core,models,pages,services,utils,widgets
