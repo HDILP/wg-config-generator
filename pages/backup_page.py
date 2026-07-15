@@ -318,6 +318,12 @@ class BackupCenterPage(ctk.CTkFrame):
         )
         self._immediate_btn.pack(side="right", padx=(6, 0))
 
+        ctk.CTkButton(
+            act, text="📋 SQL 任务", width=90,
+            font=ctk.CTkFont(size=11),
+            command=self._show_sql_jobs,
+        ).pack(side="right", padx=(6, 0))
+
         # Engine-specific action buttons (right side, before immediate)
         self._mp_action_frame = ctk.CTkFrame(act, fg_color="transparent")
         self._mp_action_frame.pack(side="right", padx=(6, 0))
