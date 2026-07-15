@@ -89,13 +89,13 @@
       "remote_password": ""
     },
     {
-      "name": "5",
+      "name": "更多的是",
       "vpn_ip": "10.66.66.6",
-      "private_key": "qFXUl2fjgpbuE1dEZ3PWiVRelJkKRhV8e1+/Kf6UvHQ=",
-      "public_key": "JLFLh9MD+/YcgPu7ydYW4ssengaBfnUO1hRnTn2yiiU=",
+      "private_key": "vM0gT7qULY+zOdnQ+skJMExWLAFBUIaqoGScHN4pZbM=",
+      "public_key": "32WpcUAo+2YBQsGj+4xDP6ZOo/DZQxZX6L//UjQb1nU=",
       "status": "active",
       "note": "",
-      "created_at": "2026-07-14 20:39",
+      "created_at": "2026-07-15 17:16",
       "allowed_ips": "",
       "remote_type": "",
       "remote_id": "",
