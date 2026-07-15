@@ -272,11 +272,16 @@ class WireGuardClientPage(ctk.CTkFrame):
         self._set_status("正在生成部署包…")
         def _work():
             created = []
+            self.after(0, lambda: self._set_status("生成中…"))
             try:
                 for target, is_win7 in res:
+                    self.after(0, lambda t=target, w7=is_win7: self._set_status(
+                        f"打包 {t} ({'Win7' if w7 else 'Win10'})…"))
                     zip_name = self._generate_deploy(target, is_win7)
                     if zip_name:
                         created.append(zip_name)
+                    else:
+                        self.after(0, lambda t=target: self._set_status(f"✗ {t} 返回空"))
                 if created:
                     deploy_dir = Path(__file__).resolve().parent.parent / "Deploy"
                     self.after(0, lambda: open_folder(deploy_dir))
