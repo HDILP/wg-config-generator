@@ -936,26 +936,29 @@ class BackupCenterPage(ctk.CTkFrame):
         """Open a dialog listing all SQL Agent jobs."""
         instance = self._project.settings.sql.instance if self._project else "MSSQLSERVER"
         top = ctk.CTkToplevel()
-        top.title("SQL Server 代理作业")
+        top.title("SQL Server Agent Jobs")
         top.geometry("720x420")
         top.resizable(True, True)
         top.transient()
         top.grab_set()
 
-        txt = ctk.CTkTextbox(top, font=ctk.CTkFont(size=12, family="Consolas"))
-        txt.pack(fill="both", expand=True, padx=12, pady=12)
-        txt.insert("end", "查询中…\n")
+        frame = ctk.CTkScrollableFrame(top)
+        frame.pack(fill="both", expand=True, padx=12, pady=12)
+
+        lbl = ctk.CTkLabel(frame, text="Loading…", font=ctk.CTkFont(size=12))
+        lbl.pack(anchor="w")
 
         def _load():
             jobs = list_sql_backup_jobs(instance)
-            txt.after(0, txt.delete, "0.0", "end")
+            lbl.after(0, lbl.destroy)
             if not jobs:
-                txt.after(0, txt.insert, "end", "未找到作业或无法连接\n")
+                ctk.CTkLabel(frame, text="No jobs found or cannot connect",
+                             font=ctk.CTkFont(size=12)).pack()
                 return
-            lines = [f"{'作业名称':<50} {'启用':<6} 上次运行"]
-            lines.append("-" * 76)
+            lines = f"{'Name':<50} {'On':<6} Last Run\n" + "-" * 76
             for j in jobs:
-                lines.append(f"{j['name']:<50} {j['enabled']:<6}  {j['last_run']}")
-            txt.after(0, txt.insert, "end", "\n".join(lines))
+                lines += f"\n{j['name']:<50} {j['enabled']:<6}  {j['last_run']}"
+            ctk.CTkLabel(frame, text=lines, font=ctk.CTkFont(size=12),
+                         anchor="w", justify="left").pack(fill="x")
 
         threading.Thread(target=_load, daemon=True).start()
