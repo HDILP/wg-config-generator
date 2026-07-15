@@ -7,6 +7,7 @@ import socket
 import subprocess
 import sys
 import time
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -110,10 +111,24 @@ def service_state(service_name: str) -> str:
     try:
         result = subprocess.run(["sc", "query", service_name], capture_output=True,
                                 text=True, timeout=15, encoding="utf-8", errors="replace")
-        output = (result.stdout + result.stderr).upper()
-        if "RUNNING" in output:
+        output = result.stdout + result.stderr
+        # sc.exe's text is localized, but the numeric state is stable:
+        # 1=STOPPED, 2=START_PENDING, 3=STOP_PENDING, 4=RUNNING.
+        match = re.search(r"STATE\s*:\s*(\d+)", output, re.IGNORECASE)
+        if match:
+            state = int(match.group(1))
+            if state == 4:
+                return "Running"
+            if state == 1:
+                return "Stopped"
+            if state == 2:
+                return "Starting"
+            if state == 3:
+                return "Stopping"
+        upper = output.upper()
+        if "RUNNING" in upper:
             return "Running"
-        if "STOPPED" in output:
+        if "STOPPED" in upper:
             return "Stopped"
     except (OSError, subprocess.TimeoutExpired):
         pass
@@ -131,16 +146,22 @@ def restart_service(service_name: str) -> str:
         if state == "Unknown":
             return f"Service '{service_name}' was not found or cannot be queried"
         if state == "Running":
-            subprocess.run(["sc", "stop", service_name], capture_output=True,
-                           text=True, timeout=30, encoding="utf-8", errors="replace")
+            result = subprocess.run(["sc.exe", "stop", service_name], capture_output=True,
+                                    text=True, timeout=30, encoding="utf-8", errors="replace")
+            if result.returncode != 0:
+                detail = (result.stderr.strip() or result.stdout.strip() or "unknown error")
+                return f"Failed to stop '{service_name}': {detail}"
             for _ in range(30):
                 if service_state(service_name) == "Stopped":
                     break
                 time.sleep(1)
             else:
                 return f"Timed out stopping '{service_name}'"
-        subprocess.run(["sc", "start", service_name], capture_output=True,
-                       text=True, timeout=30, encoding="utf-8", errors="replace")
+        result = subprocess.run(["sc.exe", "start", service_name], capture_output=True,
+                                text=True, timeout=30, encoding="utf-8", errors="replace")
+        if result.returncode != 0:
+            detail = (result.stderr.strip() or result.stdout.strip() or "unknown error")
+            return f"Failed to start '{service_name}': {detail}"
         for _ in range(30):
             if service_state(service_name) == "Running":
                 return f"Service '{service_name}' restarted"
