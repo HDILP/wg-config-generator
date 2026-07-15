@@ -15,6 +15,24 @@ logging.basicConfig(
     stream=sys.stdout,
 )
 
+import customtkinter as ctk
+
+# Speed up mousewheel: 3 lines per notch (default: 1)
+_orig_scroll_init = ctk.CTkScrollableFrame.__init__
+
+
+def _fast_scroll(self, *a, **kw):
+    _orig_scroll_init(self, *a, **kw)
+    try:
+        c = self._parent_canvas
+        c.unbind("<MouseWheel>")
+        c.bind("<MouseWheel>", lambda e: c.yview_scroll(-int(e.delta / 40), "units"))
+    except AttributeError:
+        pass
+
+
+ctk.CTkScrollableFrame.__init__ = _fast_scroll
+
 from models.app_settings import AppSettings
 from app.workspace import WorkspaceMode
 
