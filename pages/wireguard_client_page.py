@@ -1,6 +1,7 @@
 """WireGuard Client page — create configs, manage keys, export."""
 from __future__ import annotations
 
+import sys
 import threading
 from pathlib import Path
 from tkinter import messagebox
@@ -17,7 +18,22 @@ if TYPE_CHECKING:
     from app.app import GPServerManager
 
 
-DEPLOY_INSTALLERS = Path(__file__).resolve().parent.parent / "assets" / "installers"
+def _find_assets() -> Path:
+    """Locate assets/installers/ — dev, Nuitka onefile, or PyInstaller."""
+    for base in (
+        Path(getattr(sys, "_MEIPASS", ".")),
+        Path(sys.executable).parent if getattr(sys, "frozen", False) else None,
+        Path(__file__).resolve().parent.parent,
+    ):
+        if base is None:
+            continue
+        p = base / "assets" / "installers"
+        if p.is_dir():
+            return p
+    return Path(__file__).resolve().parent.parent / "assets" / "installers"
+
+
+DEPLOY_INSTALLERS = _find_assets()
 TUNSAFE_TAP_INSTALLER = DEPLOY_INSTALLERS / "TunSafe-TAP-9.21.2.exe"
 TUNSAFE_INSTALLER = DEPLOY_INSTALLERS / "TunSafe-1.4.exe"
 WIREGUARD_MSI = DEPLOY_INSTALLERS / "wireguard-amd64-1.1.msi"
