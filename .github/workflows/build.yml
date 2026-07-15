@@ -31,8 +31,17 @@ jobs:
         run: |
           if not exist "dist\main.dist\assets\installers" mkdir "dist\main.dist\assets\installers"
           xcopy /Y /I /E "assets\installers\*" "dist\main.dist\assets\installers\"
-      - name: Upload artifact
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+      - name: Build installer
+        run: iscc setup.iss
+      - name: Upload portable
         uses: actions/upload-artifact@v4
         with:
-          name: gp-server-manager-win
+          name: gp-server-manager-portable
           path: dist/main.dist/
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: gp-server-manager-installer
+          path: dist/installer/GPServerManager_Setup.exe
