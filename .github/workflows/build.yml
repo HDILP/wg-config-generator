@@ -25,4 +25,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gp-server-manager-win
-          path: dist/GPServerManager.dist/
+          path: dist/main.dist/
