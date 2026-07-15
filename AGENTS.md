@@ -155,7 +155,7 @@ Projects/<name>/
 
 ## 环境依赖
 
-- `wg.exe`（WireGuard，仅 WireGuard 页面需要）
+- `wg.exe`（WireGuard，仅 WireGuard 状态页面需要，可选）
 - `customtkinter`（GUI）
 - `qrcode[pil]`（二维码，可选）
 - `psutil`（系统信息）
