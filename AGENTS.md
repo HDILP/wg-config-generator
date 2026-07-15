@@ -147,11 +147,11 @@ Projects/<name>/
 
 ## CI
 
-`.github/workflows/build.yml` — Nuitka onefile
-- Python 3.8（Win7 兼容）
-- `--include-package=app,backup,core,models,pages,services,utils,widgets`
-- 输出: `GPServerManager.exe`
-- artifact: `gp-server-manager-win`
+`.github/workflows/build.yml` — Nuitka standalone + MinGW
+- Python 3.8（Win7 兼容），`--jobs=8`
+- `--windows-icon-from-ico=icon.ico`
+- 编译后 `xcopy assets/installers/` 进 dist（Nuitka 4.1.3 不支持 `--include-data-dir`）
+- 两个 artifact: `gp-server-manager-portable`（免安装版）、`gp-server-manager-installer`（Inno Setup 安装包）
 
 ## 环境依赖
 

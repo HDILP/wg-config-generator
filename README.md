@@ -62,7 +62,7 @@
 ## Requirements
 
 - **Windows 7+**（编译产物）或 **Python 3.8+**（源码运行）
-- WireGuard 页面需要安装 [WireGuard](https://www.wireguard.com/install/)（`wg.exe` 在 `C:\Program Files\WireGuard\`）
+- WireGuard 状态页面需要 [WireGuard](https://www.wireguard.com/install/)（可选，密钥生成无依赖）
 - 备份引擎需要 SQL Server（Maintenance Plan 引擎需要 SQL Agent 运行中）
 - `pip install -r requirements.txt`（源码运行）
 
