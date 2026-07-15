@@ -20,14 +20,14 @@ main.py
        ├─ pages/   ← UI 页面（CTkFrame 子类）
        ├─ services/ ← 后端服务
        ├─ utils/   ← 文件 I/O
-       └─ widgets/ ← 可复用组件
+       └─ widgets/ ← 可复用 UI 组件（Button/Card/FieldRow/Toast/Icons/AutoDisable）
 ```
 
 ## Layers
 
 ### app/ — Application Shell
 - `app.py`: GPServerManager (CTk). Grid 布局: sidebar | content.
-- `theme.py`: Material You LIGHT/DARK palettes, applied via `ctk.set_appearance_mode`.
+- `theme.py`: Material Design 3 ColorTokens（primary 0-900, surface tones, semantic tokens）
 
 ### backup/ — Backup Engine (Pluggable)
 - `engine.py`: `BackupEngine` ABC. Methods: `create_plan`, `update_plan`, `delete_plan`, `enable`, `disable`, `query_status`, `probe`.

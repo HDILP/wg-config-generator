@@ -11,10 +11,10 @@
 
 | 模块 | 文件 | 职责 |
 |------|------|------|
-| **app/** | `app.py` | GPServerManager 主窗口（侧边栏 + 页面路由） |
+| **app/** | `app.py` | GPServerManager 主窗口（**可折叠侧边栏** + 页面路由 + ToastManager） |
 | | `workspace.py` | WorkspaceMode(SERVER/CLIENT/BOTH) + nav items per mode |
 | | `launcher.py` | 启动模式选择对话框 |
-| | `theme.py` | Material You 主题（浅色/深色/系统） |
+| | `theme.py` | Material Design 3 ColorTokens（primary 0-900, surface tones, semantic tokens） |
 | **backup/** | `engine.py` | BackupEngine ABC（所有备份引擎的接口） |
 | | `windows_task.py` | Windows Task Scheduler 引擎 |
 | | `maintenance_plan.py` | SQL Server Agent Job 引擎 |
@@ -47,7 +47,13 @@
 | | `system_service.py` | 系统信息（CPU/内存/磁盘/网络） |
 | | `wireguard_service.py` | wg show 解析/状态检测 |
 | **utils/** | `file_ops.py` | ensure_dir / write_json / read_json / open_folder |
-| **widgets/** | `__init__.py` | 可复用组件（SidebarButton/StatusIndicator/SecurityScore/Card） |
+| **widgets/** | `__init__.py` | 可复用组件（Button/Card/FieldRow/Toast/Icons/AutoDisable） |
+| | `buttons.py` | PrimaryButton / SecondaryButton / DangerButton 语义化按钮 |
+| | `cards.py` | Card() 卡片容器 + SectionHeader() |
+| | `fields.py` | FieldRow(label, widget, helper) 表单行 |
+| | `icons.py` | SVG→PIL 渲染管线（python-lucide + svgelements） |
+| | `toast.py` | ToastManager 右上角通知（3s 自动消失） |
+| | `disabled.py` | AutoDisable 上下文管理器（按钮异步 disable） |
 | **main.py** | | 入口 |
 
 ## Architecture
@@ -159,3 +165,5 @@ Projects/<name>/
 - `customtkinter`（GUI）
 - `qrcode[pil]`（二维码，可选）
 - `psutil`（系统信息）
+- `python-lucide`（Lucide SVG 图标渲染）
+- `svgelements`（SVG 解析 → PIL Image）

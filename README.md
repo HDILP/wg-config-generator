@@ -175,7 +175,7 @@ wg-config-generator/
 └── .github/workflows/build.yml
 ```
 
-37 个 Python 源文件，全类型注解，无巨大 main.py。
+55 个 Python 源文件，全类型注解，无巨大 main.py。
 
 ---
 
