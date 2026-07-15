@@ -20,7 +20,7 @@
 | | `maintenance_plan.py` | SQL Server Agent Job 引擎 |
 | | `factory.py` | 引擎工厂 + 检测 |
 | **core/** | `project_manager.py` | ProjectManager — 所有业务逻辑 |
-| | `wg_keygen.py` | wg.exe 封装（genkey/pubkey/find_wg） |
+| | `wg_keygen.py` | Python X25519 密钥生成（cryptography），wg.exe 降级回退 |
 | | `templates.py` | WireGuard 配置模板 |
 | | `qrcode_gen.py` | 二维码生成 |
 | **models/** | `project.py` | Project / ProjectSettings / OpsInfo / SqlConfig / RemoteInfo |
@@ -106,7 +106,7 @@ GUI 操作 → ProjectManager.xxx() → _write_project() → write_json(project.
 - **GUI 用 threading** — 所有耗时操作后台线程，避免卡 UI
 - **项目名唯一** — `(ProjectManager.PROJECTS_DIR / name).exists()` 拦截重复
 - **Windows Task 和 Maintenance Plan 互不影响** — 切换引擎不会自动删除另一方
-- **SQL 服务双路径** — 有 PowerShell 走 ps，没有就 `reg.exe` + `sc.exe`（Win7）
+- **SQL 服务操作** — reg.exe/sc.exe 为主，sqlcmd SHUTDOWN 重启
 - **所有页面构造** — `_switch_to(page_class, self, ...args)`，page 在 destroy 后才创建
 
 ## 磁盘布局

@@ -37,7 +37,7 @@ main.py
 
 ### core/ — Business Logic
 - `project_manager.py`: `ProjectManager` (static class). CRUD for projects + clients.
-- `wg_keygen.py`: Shells out to `wg.exe` for keypair generation.
+- `wg_keygen.py`: Python X25519 key generation (cryptography), wg.exe fallback for `wg show`.
 - `templates.py`: WireGuard `.conf` string templates.
 - `qrcode_gen.py`: QR code from client config (qrcode[pil] or SVG fallback).
 
@@ -65,8 +65,8 @@ Each page is a `CTkFrame` subclass constructed via `app._switch_to(PageClass, se
 | Settings | `settings_page.py` | BOTH | Workspace mode / Theme / About |
 
 ### services/ — Backend Services
-- `backup_service.py`: Immediate backup, history, file browser, health, cleanup.
-- `sql_service.py`: SQL Server registry + SCM (PowerShell → cmd/reg.exe/sc.exe fallback).
+- `backup_service.py`: Immediate backup, history, file browser, health, cleanup, SQL Agent job list.
+- `sql_service.py`: SQL Server registry + SCM (reg.exe/sc.exe → sqlcmd SHUTDOWN).
 - `firewall_service.py`: netsh advfirewall wrapper.
 - `system_service.py`: ping, traceroute, public IP, system info.
 - `wireguard_service.py`: `wg show` dump parser.
