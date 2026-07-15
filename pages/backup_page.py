@@ -30,6 +30,7 @@ from services.backup_service import (
     restore_database,
 )
 from utils.file_ops import open_folder
+from widgets import Card, PrimaryButton, SecondaryButton
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
@@ -93,11 +94,11 @@ class BackupCenterPage(ctk.CTkFrame):
         hdr.pack(fill="x", padx=24, pady=(20, 8))
         ctk.CTkLabel(hdr, text="Backup Center", font=ctk.CTkFont(size=20, weight="bold"),
                      ).pack(side="left")
-        ctk.CTkButton(hdr, text="🔄 刷新", width=70, height=28,
-                       font=ctk.CTkFont(size=11),
-                       command=self.refresh).pack(side="right", padx=(6, 0))
-        ctk.CTkButton(hdr, text="📂 打开目录", width=90, height=28,
-                       font=ctk.CTkFont(size=11),
+        SecondaryButton(hdr, text="🔄 刷新", width=70, height=28,
+                        font=ctk.CTkFont(size=11),
+                        command=self.refresh).pack(side="right", padx=(6, 0))
+        PrimaryButton(hdr, text="📂 打开目录", width=90, height=28,
+                      font=ctk.CTkFont(size=11),
                        command=lambda: open_folder(Path(policy.save_path)),
                        ).pack(side="right")
 
@@ -310,10 +311,10 @@ class BackupCenterPage(ctk.CTkFrame):
             command=lambda: self._app.show_dashboard(),
         ).pack(side="left")
 
-        self._immediate_btn = ctk.CTkButton(
+        self._immediate_btn = PrimaryButton(
             act, text="⚡ 立即备份",
             font=ctk.CTkFont(size=13, weight="bold"),
-            fg_color="#2b7a4b", hover_color="#1e5f38",
+            fg_color="#2b7a4b",
             command=self._do_immediate_backup,
         )
         self._immediate_btn.pack(side="right", padx=(6, 0))
@@ -328,12 +329,12 @@ class BackupCenterPage(ctk.CTkFrame):
         self._mp_action_frame = ctk.CTkFrame(act, fg_color="transparent")
         self._mp_action_frame.pack(side="right", padx=(6, 0))
 
-        self._mp_buttons["create"] = ctk.CTkButton(
+        self._mp_buttons["create"] = PrimaryButton(
             self._mp_action_frame, text="创建", width=70,
             font=ctk.CTkFont(size=12, weight="bold"),
             fg_color="#6750A4", command=self._do_mp_create,
         )
-        self._mp_buttons["update"] = ctk.CTkButton(
+        self._mp_buttons["update"] = SecondaryButton(
             self._mp_action_frame, text="更新", width=70,
             font=ctk.CTkFont(size=12, weight="bold"),
             fg_color="#FF9800", command=self._do_mp_update,
@@ -345,7 +346,7 @@ class BackupCenterPage(ctk.CTkFrame):
         )
 
         # Save (Windows Task)
-        self._save_btn = ctk.CTkButton(
+        self._save_btn = PrimaryButton(
             act, text="💾 一键启用",
             font=ctk.CTkFont(size=13, weight="bold"),
             fg_color="#6750A4",

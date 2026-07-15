@@ -9,6 +9,7 @@ import customtkinter as ctk
 
 from app.workspace import WorkspaceMode
 from services.firewall_service import WELL_KNOWN_PORTS, apply_custom_port, apply_well_known, is_rule_enabled
+from widgets import Card, FieldRow, PrimaryButton
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
@@ -27,9 +28,9 @@ class FirewallPage(ctk.CTkFrame):
     def _build(self) -> None:
         ctk.CTkLabel(self, text="Windows Firewall", font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", padx=24, pady=(20, 4))
         ctk.CTkLabel(self, text="Only rules created by GP Server Manager are changed.", text_color="#79747E").pack(anchor="w", padx=24, pady=(0, 16))
-        card = ctk.CTkFrame(self, corner_radius=12)
+
+        card = Card(self, title="Managed inbound rules")
         card.pack(fill="x", padx=24)
-        ctk.CTkLabel(card, text="Managed inbound rules", font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=16, pady=(12, 6))
         for name, port in WELL_KNOWN_PORTS.items():
             row = ctk.CTkFrame(card, fg_color="transparent")
             row.pack(fill="x", padx=16, pady=3)
@@ -40,22 +41,21 @@ class FirewallPage(ctk.CTkFrame):
             toggle.pack(side="right")
             self._toggles[name] = toggle
 
-        custom = ctk.CTkFrame(self, corner_radius=12)
+        custom = Card(self, title="Custom inbound rule")
         custom.pack(fill="x", padx=24, pady=12)
-        ctk.CTkLabel(custom, text="Custom inbound rule", font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=16, pady=(12, 6))
         row = ctk.CTkFrame(custom, fg_color="transparent")
         row.pack(fill="x", padx=16, pady=(0, 12))
         self._port = ctk.CTkEntry(row, width=110, placeholder_text="Port")
         self._port.pack(side="left")
         self._protocol = ctk.StringVar(value="TCP")
         ctk.CTkOptionMenu(row, values=["TCP", "UDP"], variable=self._protocol, width=80).pack(side="left", padx=8)
-        ctk.CTkButton(row, text="Add rule", width=90, command=self._add_custom).pack(side="left")
+        PrimaryButton(row, text="Add rule", width=90, command=self._add_custom).pack(side="left")
         if self._project:
             ctk.CTkButton(row, text="Open WireGuard port", width=140,
                           command=lambda: self._add(self._project.settings.listen_port, "UDP")).pack(side="right")
         footer = ctk.CTkFrame(self, fg_color="transparent")
         footer.pack(fill="x", padx=24)
-        ctk.CTkButton(footer, text="Refresh", command=self._refresh).pack(side="right")
+        PrimaryButton(footer, text="Refresh", command=self._refresh).pack(side="right")
         self._status = ctk.CTkLabel(self, text="", text_color="#79747E")
         self._status.pack(pady=8)
         self._refresh()

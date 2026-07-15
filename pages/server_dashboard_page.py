@@ -11,6 +11,7 @@ from core.wg_keygen import check_wg_available
 from services.sql_service import get_sql_info
 from services.system_service import get_system_info
 from services.wireguard_service import wg_interfaces
+from widgets import Card
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
@@ -26,22 +27,27 @@ class ServerDashboardPage(ctk.CTkFrame):
         self._build()
 
     def _build(self) -> None:
+        # Header
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", padx=24, pady=(20, 12))
         ctk.CTkLabel(header, text="Server Dashboard", font=ctk.CTkFont(size=22, weight="bold")).pack(side="left")
         ctk.CTkButton(header, text="Refresh", width=90, command=self._refresh).pack(side="right")
+
+        # Cards grid
         grid = ctk.CTkFrame(self, fg_color="transparent")
         grid.pack(fill="both", expand=True, padx=24)
         grid.grid_columnconfigure((0, 1), weight=1)
+
         for index, (key, title) in enumerate([
-            ("system", "System"), ("sql", "SQL Server"), ("wireguard", "WireGuard"), ("network", "Network"),
+            ("system", "System"), ("sql", "SQL Server"),
+            ("wireguard", "WireGuard"), ("network", "Network"),
         ]):
-            card = ctk.CTkFrame(grid, corner_radius=12)
+            card = Card(grid, title=title)
             card.grid(row=index // 2, column=index % 2, sticky="nsew", padx=6, pady=6)
-            ctk.CTkLabel(card, text=title, font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=16, pady=(14, 6))
             value = ctk.CTkLabel(card, text="Loading...", justify="left", anchor="w", text_color="#79747E")
             value.pack(fill="both", expand=True, padx=16, pady=(0, 14))
             self._values[key] = value
+
         self._status = ctk.CTkLabel(self, text="", text_color="#79747E")
         self._status.pack(pady=8)
         self._refresh()

@@ -8,7 +8,7 @@ import customtkinter as ctk
 from app.workspace import WorkspaceMode
 from core.project_manager import ProjectManager
 from models.project import Project
-from widgets import CardFrame
+from widgets import Card, PrimaryButton
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
@@ -40,7 +40,7 @@ class ClientDashboardPage(ctk.CTkFrame):
                 text_color="#79747E",
             ).pack(anchor="w", padx=24, pady=(0, 16))
 
-            info = CardFrame(self, title="服务器信息")
+            info = Card(self, title="服务器信息")
             info.pack(fill="x", padx=24, pady=(0, 12))
 
             for label, val in [
@@ -84,7 +84,7 @@ class ClientDashboardPage(ctk.CTkFrame):
             ctk.CTkLabel(card, text=label, font=ctk.CTkFont(size=12),
                          text_color="#79747E").pack()
 
-        card = CardFrame(self, title="最近项目")
+        card = Card(self, title="最近项目")
         card.pack(fill="x", padx=24, pady=(0, 12))
 
         if not proj:
@@ -106,7 +106,7 @@ class ClientDashboardPage(ctk.CTkFrame):
                     command=lambda n=name: self._app.open_project(n),
                 ).pack(side="right")
 
-        ctk.CTkButton(
+        PrimaryButton(
             self, text="➕ 新建项目",
             font=ctk.CTkFont(size=13, weight="bold"),
             fg_color="#2b7a4b",

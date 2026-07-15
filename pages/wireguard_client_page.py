@@ -13,6 +13,7 @@ from app.workspace import WorkspaceMode
 from core.project_manager import ProjectManager
 from models.project import Project
 from utils.file_ops import ensure_dir, open_folder, write_text
+from widgets import Card, PrimaryButton
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
@@ -64,12 +65,8 @@ class WireGuardClientPage(ctk.CTkFrame):
         s = self._project.settings
 
         # Server info
-        info = ctk.CTkFrame(self, corner_radius=12)
+        info = Card(self, title="服务器信息")
         info.pack(fill="x", padx=24, pady=(0, 12))
-
-        ctk.CTkLabel(info, text="服务器信息",
-                     font=ctk.CTkFont(size=14, weight="bold"),
-                     ).pack(anchor="w", padx=16, pady=(10, 6))
 
         for label, val in [
             ("公网 IP", s.public_ip or "未设置"),
@@ -86,18 +83,14 @@ class WireGuardClientPage(ctk.CTkFrame):
                          anchor="w").pack(side="left", fill="x", expand=True)
 
         # Edit server conf
-        edit_frame = ctk.CTkFrame(self, corner_radius=12)
+        edit_frame = Card(self, title="服务端配置")
         edit_frame.pack(fill="x", padx=24, pady=(0, 12))
-        ctk.CTkLabel(edit_frame, text="服务端配置",
-                     font=ctk.CTkFont(size=14, weight="bold"),
-                     ).pack(anchor="w", padx=16, pady=(10, 6))
         row = ctk.CTkFrame(edit_frame, fg_color="transparent")
         row.pack(fill="x", padx=16, pady=(0, 10))
-        ctk.CTkButton(row, text="📝 编辑 server.conf", height=32,
+        PrimaryButton(row, text="📝 编辑 server.conf", height=32,
                        command=self._edit_server_conf).pack(side="left", padx=(0, 8))
-        ctk.CTkButton(row, text="📂 打开目录", height=32,
-                       command=lambda: open_folder(self._project.dir),
-                       ).pack(side="left")
+        PrimaryButton(row, text="📂 打开目录", height=32,
+                       command=lambda: open_folder(self._project.dir)).pack(side="left")
 
         # Client list
         ctk.CTkLabel(self, text=f"客户端 ({len(self._project.clients)})",
@@ -150,13 +143,13 @@ class WireGuardClientPage(ctk.CTkFrame):
                        command=lambda: self._app.show_dashboard(),
                        ).pack(side="left")
 
-        ctk.CTkButton(act, text="＋ 新增客户端",
+        PrimaryButton(act, text="＋ 新增客户端",
                        font=ctk.CTkFont(size=13, weight="bold"),
                        fg_color="#2b7a4b",
                        command=self._add_client,
                        ).pack(side="right")
 
-        ctk.CTkButton(self, text="📦 生成部署包", height=32,
+        PrimaryButton(self, text="📦 生成部署包", height=32,
                        font=ctk.CTkFont(size=12),
                        fg_color="#6750A4",
                        command=self._open_deploy_dialog,
@@ -179,7 +172,6 @@ class WireGuardClientPage(ctk.CTkFrame):
             return
         path = self._project.dir / "server.conf"
         if path.exists():
-            # ponytail: open in notepad on Windows
             import subprocess, sys as _sys
             _sys.platform == "win32" and subprocess.Popen(["notepad", str(path)])
             self._set_status("已打开 server.conf")
@@ -230,21 +222,6 @@ class WireGuardClientPage(ctk.CTkFrame):
             self.after(0, lambda: self._set_status(f"✓ {name} removed"))
         except Exception as exc:
             self.after(0, lambda: self._set_status(f"✗ {exc}"))
-
-    def _export_qr(self, name: str) -> None:
-        try:
-            cfg = ProjectManager.export_client_config(self._project, name)
-            path = self._project.dir / "clients" / name / "qrcode.png"
-            if path.exists():
-                open_folder(path.parent)
-                self._set_status(f"✓ QR code for {name}")
-            else:
-                from core.qrcode_gen import generate_qr_code
-                generate_qr_code(cfg, path)
-                open_folder(path.parent)
-                self._set_status(f"✓ QR code generated for {name}")
-        except Exception as exc:
-            self._set_status(f"✗ {exc}")
 
     def _export_qr(self, name: str) -> None:
         try:
@@ -432,7 +409,7 @@ class _DeployDialog(ctk.CTkToplevel):
         ctk.CTkButton(btn_f, text="取消", width=80,
                        command=self.destroy,
                        font=ctk.CTkFont(size=12)).pack(side="left", padx=(0, 8))
-        ctk.CTkButton(btn_f, text="生成", command=self._confirm,
+        PrimaryButton(btn_f, text="生成", command=self._confirm,
                        font=ctk.CTkFont(size=12, weight="bold"),
                        fg_color="#6750A4").pack(side="right")
 
@@ -477,7 +454,7 @@ class _AddClientDialog(ctk.CTkToplevel):
         ctk.CTkButton(btn_frame, text="取消", command=self.destroy,
                        font=ctk.CTkFont(size=12), width=80,
                        ).pack(side="left", padx=(0, 8))
-        ctk.CTkButton(btn_frame, text="添加", command=self._confirm,
+        PrimaryButton(btn_frame, text="添加", command=self._confirm,
                        font=ctk.CTkFont(size=12, weight="bold"),
                        ).pack(side="right")
 

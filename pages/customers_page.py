@@ -10,6 +10,7 @@ import customtkinter as ctk
 from app.workspace import WorkspaceMode
 from core.project_manager import ProjectManager
 from models.project import Project
+from widgets import Card, PrimaryButton
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
@@ -58,7 +59,7 @@ class CustomersPage(ctk.CTkFrame):
                              ).pack(anchor="w", padx="16")
             else:
                 for c in project.clients:
-                    row = ctk.CTkFrame(scroll, fg_color="transparent")
+                    row = Card(scroll, corner_radius=8)
                     row.pack(fill="x", padx=16, pady=2)
 
                     ctk.CTkLabel(row, text=f"👤  {c.name}",
@@ -82,7 +83,7 @@ class CustomersPage(ctk.CTkFrame):
                                       command=lambda v=c.remote_password: self._copy(v),
                                       ).pack(side="left", padx=1)
 
-        ctk.CTkButton(self, text="＋ 新建客户",
+        PrimaryButton(self, text="＋ 新建客户",
                        font=ctk.CTkFont(size=13, weight="bold"),
                        fg_color="#2b7a4b",
                        command=self._add_customer,
@@ -182,7 +183,7 @@ class _CustomerDialog(ctk.CTkToplevel):
         ctk.CTkButton(btn_frame, text="取消", width=80,
                        command=self.destroy,
                        font=ctk.CTkFont(size=12)).pack(side="left", padx=(0, 8))
-        ctk.CTkButton(btn_frame, text="创建", command=self._confirm,
+        PrimaryButton(btn_frame, text="创建", command=self._confirm,
                        font=ctk.CTkFont(size=12, weight="bold"),
                        ).pack(side="right")
 

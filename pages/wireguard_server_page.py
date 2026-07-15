@@ -12,6 +12,7 @@ import customtkinter as ctk
 from app.workspace import WorkspaceMode
 from core.wg_keygen import check_wg_available
 from services.wireguard_service import wg_interfaces, wg_show
+from widgets import Card, PrimaryButton
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
@@ -35,11 +36,11 @@ class WireGuardServerPage(ctk.CTkFrame):
         self._summary.pack(anchor="w", padx=24, pady=(0, 12))
         actions = ctk.CTkFrame(self, fg_color="transparent")
         actions.pack(fill="x", padx=24, pady=(0, 10))
-        ctk.CTkButton(actions, text="Open WireGuard", command=self._open_client).pack(side="left")
-        ctk.CTkButton(actions, text="Open configuration folder", command=self._open_config).pack(side="left", padx=8)
-        ctk.CTkButton(actions, text="Refresh", command=self._refresh).pack(side="right")
+        PrimaryButton(actions, text="Open WireGuard", command=self._open_client).pack(side="left")
+        PrimaryButton(actions, text="Open configuration folder", command=self._open_config).pack(side="left", padx=8)
+        PrimaryButton(actions, text="Refresh", command=self._refresh).pack(side="right")
         if WG_INSTALLER.exists():
-            self._install = ctk.CTkButton(actions, text="Install WireGuard", command=self._install_wireguard)
+            self._install = PrimaryButton(actions, text="Install WireGuard", command=self._install_wireguard)
             self._install.pack(side="left", padx=8)
         self._details = ctk.CTkTextbox(self, corner_radius=12, font=ctk.CTkFont(family="Consolas", size=12))
         self._details.pack(fill="both", expand=True, padx=24, pady=(0, 20))

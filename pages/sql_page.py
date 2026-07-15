@@ -16,6 +16,7 @@ from services.sql_service import (
     set_sql_listen_mode,
     set_sql_port,
 )
+from widgets import Card, FieldRow, PrimaryButton, SecondaryButton, DangerButton
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
@@ -35,7 +36,6 @@ class SQLPage(ctk.CTkFrame):
         instance = self._project.settings.sql.instance if self._project else "MSSQLSERVER"
         s = self._project.settings.sql if self._project else None
 
-        # Seed from project.json immediately — no blocking
         seed_port = str(s.port) if s and s.port else "65529"
         seed_listen = s.listen if s and s.listen else "127.0.0.1"
         display_instance = s.instance if s else instance
@@ -44,7 +44,7 @@ class SQLPage(ctk.CTkFrame):
                      ).pack(anchor="w", padx=24, pady=(20, 16))
 
         # Info card
-        info = ctk.CTkFrame(self, corner_radius=12)
+        info = Card(self, title="Instance Info")
         info.pack(fill="x", padx=24, pady=(0, 12))
 
         fields = [
@@ -63,7 +63,7 @@ class SQLPage(ctk.CTkFrame):
             if label == "端口":
                 self._port_val = lbl
 
-        # Edit port
+        # Edit port row
         port_row = ctk.CTkFrame(self, fg_color="transparent")
         port_row.pack(fill="x", padx=24, pady=(8, 4))
         ctk.CTkLabel(port_row, text="端口", font=ctk.CTkFont(size=13),
@@ -71,10 +71,9 @@ class SQLPage(ctk.CTkFrame):
         self._port_entry = ctk.CTkEntry(port_row, font=ctk.CTkFont(size=13), width=100)
         self._port_entry.insert(0, seed_port)
         self._port_entry.pack(side="left", padx=(8, 0))
-        ctk.CTkButton(port_row, text="保存", width=60, height=28,
-                       font=ctk.CTkFont(size=11),
-                       command=self._save_port,
-                       ).pack(side="left", padx=(8, 0))
+        PrimaryButton(port_row, text="保存", width=60, height=28,
+                      font=ctk.CTkFont(size=11),
+                      command=self._save_port).pack(side="left", padx=(8, 0))
 
         # Listen mode
         listen_row = ctk.CTkFrame(self, fg_color="transparent")
@@ -96,27 +95,23 @@ class SQLPage(ctk.CTkFrame):
         act = ctk.CTkFrame(self, fg_color="transparent")
         act.pack(fill="x", padx=24, pady=(16, 8))
 
-        ctk.CTkButton(act, text="← 返回仪表盘", width=110,
-                       font=ctk.CTkFont(size=12),
-                       command=lambda: self._app.show_dashboard(),
-                       ).pack(side="left")
+        SecondaryButton(act, text="← 返回仪表盘", width=110,
+                        font=ctk.CTkFont(size=12),
+                        command=lambda: self._app.show_dashboard()).pack(side="left")
 
-        ctk.CTkButton(act, text="保存配置", font=ctk.CTkFont(size=13, weight="bold"),
-                       fg_color="#6750A4", command=self._save_all,
-                       ).pack(side="right", padx=(6, 0))
-        ctk.CTkButton(act, text="保存并重启", font=ctk.CTkFont(size=13),
-                       fg_color="#E65100", command=self._save_and_restart,
-                       ).pack(side="right", padx=(6, 0))
+        PrimaryButton(act, text="保存配置", font=ctk.CTkFont(size=13, weight="bold"),
+                      command=self._save_all).pack(side="right", padx=(6, 0))
+        DangerButton(act, text="保存并重启", font=ctk.CTkFont(size=13),
+                     command=self._save_and_restart).pack(side="right", padx=(6, 0))
         ctk.CTkButton(act, text="重启 SQL", font=ctk.CTkFont(size=13),
-                       fg_color="#FF9800", command=self._restart_sql,
-                       ).pack(side="right", padx=(6, 0))
+                      fg_color="#FF9800", command=self._restart_sql).pack(side="right", padx=(6, 0))
 
         # Status
         self._status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
                                      text_color="#79747E")
         self._status.pack(pady=(8, 4))
 
-        # Refresh live data in background — no freeze
+        # Refresh live data in background
         threading.Thread(target=self._refresh_live, args=(instance,), daemon=True).start()
 
     def _refresh_live(self, instance: str) -> None:

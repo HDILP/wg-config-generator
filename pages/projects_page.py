@@ -7,13 +7,14 @@ import customtkinter as ctk
 
 from app.workspace import WorkspaceMode
 from core.project_manager import ProjectManager
+from widgets import Card, PrimaryButton, SecondaryButton
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
 
 
 class ProjectsPage(ctk.CTkFrame):
-    """Project management: list, open, create, delete projects."""
+    """Project management: list, open, create projects."""
     WORKSPACE = WorkspaceMode.CLIENT
 
     def __init__(self, master, app: GPServerManager, **kwargs):
@@ -33,7 +34,7 @@ class ProjectsPage(ctk.CTkFrame):
             ctk.CTkLabel(self, text="暂无项目",
                          font=ctk.CTkFont(size=14),
                          text_color="#79747E").pack(pady=20)
-            ctk.CTkButton(
+            PrimaryButton(
                 self, text="新建项目", font=ctk.CTkFont(size=13, weight="bold"),
                 fg_color="#2b7a4b", command=self._app.show_new_project,
             ).pack()
@@ -43,7 +44,7 @@ class ProjectsPage(ctk.CTkFrame):
         scroll.pack(fill="both", expand=True, padx=24, pady=(0, 12))
 
         for name in reversed(proj):
-            card = ctk.CTkFrame(scroll, corner_radius=8)
+            card = Card(scroll, corner_radius=8)
             card.pack(fill="x", pady=4)
 
             row = ctk.CTkFrame(card, fg_color="transparent")
@@ -53,14 +54,15 @@ class ProjectsPage(ctk.CTkFrame):
                          font=ctk.CTkFont(size=14, weight="bold"),
                          anchor="w").pack(side="left", fill="x", expand=True)
 
-            ctk.CTkButton(
+            SecondaryButton(
                 row, text="打开", width=70, height=28,
                 font=ctk.CTkFont(size=12),
                 fg_color="#6750A4",
+                text_color="#FFFFFF",
                 command=lambda n=name: self._app.open_project_from_list(n),
             ).pack(side="right")
 
-        ctk.CTkButton(
+        PrimaryButton(
             self, text="➕ 新建项目",
             font=ctk.CTkFont(size=13, weight="bold"),
             fg_color="#2b7a4b",

@@ -1,6 +1,7 @@
 """App — GP Server Manager main application.
 
 Workspace-aware: shows different sidebar + pages based on Server/Client mode.
+Features collapsible sidebar with Lucide icons.
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from typing import Dict, Optional, Type
 
 import customtkinter as ctk
 
-from app.theme import apply_theme
+from app.theme import apply_theme, get_colors
 from app.workspace import WorkspaceMode, nav_for_mode, NavItem
 from core.project_manager import ProjectManager
 from core.wg_keygen import check_wg_available
@@ -35,12 +36,15 @@ from pages import (
     WireGuardClientPage,
     WireGuardServerPage,
 )
+from widgets import get_sidebar_icon, ToastManager
 
 
 class GPServerManager(ctk.CTk):
     """Main application window — workspace-aware."""
 
     WIDTH, HEIGHT = 960, 680
+    SIDEBAR_WIDE = 200
+    SIDEBAR_NARROW = 60
 
     def __init__(self, workspace: WorkspaceMode, settings: AppSettings):
         super().__init__()
@@ -56,6 +60,8 @@ class GPServerManager(ctk.CTk):
         self._current_project: Optional[Project] = None
         self._current_page: str = ""
         self._sidebar_buttons: Dict[str, ctk.CTkButton] = {}
+        self._sidebar_collapsed = False
+        self._target_sidebar_width = self.SIDEBAR_WIDE
 
         # Check WireGuard
         self._wg_error = check_wg_available()
@@ -63,11 +69,13 @@ class GPServerManager(ctk.CTk):
             load_local_server() if workspace == WorkspaceMode.SERVER else None
         )
 
+        # Toast manager
+        self._toast_mgr = ToastManager(self)
+
         # Layout
         self._build_layout()
 
         # Show start page
-        # WireGuard is optional: the other local-server tools stay available.
         self._nav_to_home()
 
     @property
@@ -78,13 +86,17 @@ class GPServerManager(ctk.CTk):
     def settings(self) -> AppSettings:
         return self._settings
 
+    def show_toast(self, message: str, type: str = "info") -> None:
+        """Show a toast notification."""
+        self._toast_mgr.show(message, type=type)
+
     def _show_wg_error(self) -> None:
         frame = ctk.CTkFrame(self._content, corner_radius=0, fg_color="transparent")
         frame.pack(fill="both", expand=True)
         ctk.CTkLabel(frame, text="⚠️ WireGuard 未安装",
                      font=ctk.CTkFont(size=20, weight="bold")).pack(pady=(60, 10))
         ctk.CTkLabel(frame, text=self._wg_error or "", wraplength=400,
-                     font=ctk.CTkFont(size=13), text_color="gray40").pack(pady=10)
+                     font=ctk.CTkFont(size=13), text_color="#79747E").pack(pady=10)
         installer = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             "..", "assets", "installers", "wireguard-amd64-1.1.msi",
@@ -97,7 +109,7 @@ class GPServerManager(ctk.CTk):
                           ).pack(pady=12)
         ctk.CTkButton(frame, text="重启程序", font=ctk.CTkFont(size=13),
                       command=lambda: os.execl(sys.executable, sys.executable, *sys.argv),
-                      fg_color="gray40").pack()
+                      fg_color="#79747E").pack()
 
     # ═══════════════════════════════════════════════════════════════
     #  Layout
@@ -108,7 +120,7 @@ class GPServerManager(ctk.CTk):
         self.grid_rowconfigure(0, weight=1)
 
         # Sidebar
-        self._sidebar = ctk.CTkFrame(self, width=200, corner_radius=0)
+        self._sidebar = ctk.CTkFrame(self, width=self.SIDEBAR_WIDE, corner_radius=0)
         self._sidebar.grid(row=0, column=0, sticky="nswe")
         self._sidebar.grid_propagate(False)
 
@@ -120,31 +132,80 @@ class GPServerManager(ctk.CTk):
 
         self._build_sidebar()
 
+    def _toggle_sidebar(self) -> None:
+        """Toggle sidebar between wide and narrow."""
+        self._sidebar_collapsed = not self._sidebar_collapsed
+        target = self.SIDEBAR_NARROW if self._sidebar_collapsed else self.SIDEBAR_WIDE
+        self._animate_sidebar(target)
+
+    def _animate_sidebar(self, target_width: int) -> None:
+        """Smoothly animate sidebar to target width."""
+        current = self._sidebar.winfo_width()
+        if current == target_width:
+            return
+        steps = 6
+        delta = (target_width - current) / steps
+        def step(i: int = 0) -> None:
+            if i >= steps:
+                self._sidebar.configure(width=target_width)
+                return
+            new_w = int(current + delta * (i + 1))
+            self._sidebar.configure(width=new_w)
+            self.after(10, lambda: step(i + 1))
+        step()
+
     def _build_sidebar(self) -> None:
         for w in self._sidebar.winfo_children():
             w.destroy()
         self._sidebar_buttons.clear()
         is_client = self._workspace == WorkspaceMode.CLIENT
 
-        # Brand + workspace badge
-        mode_label = {
-            WorkspaceMode.SERVER: "🖥 Server",
-            WorkspaceMode.CLIENT: "💻 Client",
-        }.get(self._workspace, "")
+        colors = get_colors(ctk.get_appearance_mode())
+        sidebar_bg = colors.surface_container if is_client else colors.surface_container_low
 
+        # Top bar: hamburger + title
+        top_bar = ctk.CTkFrame(self._sidebar, fg_color="transparent", height=48)
+        top_bar.pack(fill="x", padx=0, pady=0)
+        top_bar.pack_propagate(False)
+
+        # Hamburger button
+        hamburger_icon = get_sidebar_icon("menu")
+        ctk.CTkButton(
+            top_bar,
+            image=hamburger_icon,
+            width=36,
+            height=36,
+            fg_color="transparent",
+            hover_color=colors.primary_container,
+            command=self._toggle_sidebar,
+        ).pack(side="left", padx=(8, 4), pady=6)
+
+        # Title (hidden when narrow)
+        title_visible = not self._sidebar_collapsed
         ctk.CTkLabel(
-            self._sidebar, text="GP Server Manager",
-            font=ctk.CTkFont(size=16, weight="bold"),
-        ).pack(pady=(20, 2))
-        ctk.CTkLabel(
-            self._sidebar, text=mode_label,
-            font=ctk.CTkFont(size=10),
-            text_color="#79747E",
-        ).pack(pady=(0, 8))
+            top_bar,
+            text="GP Server Manager",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w",
+        ).pack(side="left", fill="x", expand=True, padx=(0, 8), pady=(8, 0))
+
+        # Workspace badge
+        if not self._sidebar_collapsed:
+            mode_label = {
+                WorkspaceMode.SERVER: "Server Mode",
+                WorkspaceMode.CLIENT: "Client Mode",
+            }.get(self._workspace, "")
+            ctk.CTkLabel(
+                top_bar,
+                text=mode_label,
+                font=ctk.CTkFont(size=10),
+                text_color=colors.outline,
+            ).pack(pady=(0, 4))
 
         # Separator
-        ctk.CTkLabel(self._sidebar, text="", height=2,
-                     fg_color="#CAC4D0").pack(fill="x", padx=16, pady=(0, 8))
+        if not self._sidebar_collapsed:
+            ctk.CTkLabel(self._sidebar, text="", height=1,
+                         fg_color=colors.outline_variant).pack(fill="x", padx=16, pady=(0, 8))
 
         # Global nav (always visible)
         global_items = []
@@ -168,35 +229,48 @@ class GPServerManager(ctk.CTk):
         # Show project section: Client mode needs a project; Server always has items
         has_project = (self._current_project is not None
                        ) if is_client else not is_client
-        if has_project:
-            ctk.CTkLabel(self._sidebar, text="", height=2,
-                         fg_color="#CAC4D0").pack(fill="x", padx=16, pady=(8, 8))
+        if has_project and not self._sidebar_collapsed:
+            ctk.CTkLabel(self._sidebar, text="", height=1,
+                         fg_color=colors.outline_variant).pack(fill="x", padx=16, pady=(8, 8))
+            proj_label = f"📌 {self._current_project.name}" if self._current_project else ""
             ctk.CTkLabel(
                 self._sidebar,
-                text=f"📌  {self._current_project.name}" if self._current_project else "",
+                text=proj_label,
                 font=ctk.CTkFont(size=12, weight="bold"),
-                text_color="#6750A4", anchor="w",
+                text_color=colors.primary,
+                anchor="w",
             ).pack(fill="x", padx=16, pady=(0, 4))
+            for item in project_items:
+                self._add_nav_button(item)
+        elif not self._sidebar_collapsed:
             for item in project_items:
                 self._add_nav_button(item)
 
         # Status bar at bottom
         self._sidebar_status = ctk.CTkLabel(
             self._sidebar, text="", font=ctk.CTkFont(size=10),
-            text_color="#79747E",
+            text_color=colors.outline,
         )
         self._sidebar_status.pack(side="bottom", pady=(0, 12))
 
     def _add_nav_button(self, item: NavItem) -> None:
+        icon_img = get_sidebar_icon(item.icon)
         btn = ctk.CTkButton(
-            self._sidebar, text=f"{item.icon}  {item.label}",
+            self._sidebar,
+            text=f"  {item.label}" if self._sidebar_collapsed else f"  {item.label}",
+            image=icon_img if not self._sidebar_collapsed else None,
+            compound="left" if not self._sidebar_collapsed else "right",
             font=ctk.CTkFont(size=13),
-            fg_color="transparent", text_color="#49454F",
-            hover_color="#F3EDF7", anchor="w",
-            corner_radius=8, height=30,
+            fg_color="transparent",
+            text_color="#49454F",
+            hover_color="#F3EDF7",
+            anchor="w",
+            corner_radius=8,
+            height=36 if self._sidebar_collapsed else 36,
+            width=self.SIDEBAR_NARROW if self._sidebar_collapsed else None,
             command=lambda pn=item.page_name: self._nav_to(pn),
         )
-        btn.pack(fill="x", padx=12, pady=1)
+        btn.pack(fill="x", padx=8 if self._sidebar_collapsed else 12, pady=1)
         self._sidebar_buttons[item.page_name] = btn
 
     def _nav_to(self, page_name: str) -> None:
@@ -205,11 +279,12 @@ class GPServerManager(ctk.CTk):
             handler()
 
     def _update_nav(self, active: str = "") -> None:
+        colors = get_colors(ctk.get_appearance_mode())
         for name, btn in self._sidebar_buttons.items():
             is_active = name == active
             btn.configure(
-                fg_color="#EADDFF" if is_active else "transparent",
-                text_color="#1C1B1F" if is_active else "#49454F",
+                fg_color=colors.primary_container if is_active else "transparent",
+                text_color=colors.on_primary_container if is_active else "#49454F",
             )
 
     # ═══════════════════════════════════════════════════════════════
@@ -225,7 +300,6 @@ class GPServerManager(ctk.CTk):
                 "不可用",
                 f"该页面在 {self._workspace.value.title()} Mode 下不可用",
             )
-            # Return an empty frame to avoid crash
             empty = ctk.CTkFrame(self._content, fg_color="transparent")
             empty.pack(fill="both", expand=True)
             return empty
@@ -386,7 +460,6 @@ class GPServerManager(ctk.CTk):
 
 class _NewProjectDialog(ctk.CTkToplevel):
     """Dialog for creating a new project."""
-    # Kept from original — unchanged
     def __init__(self, parent: GPServerManager):
         super().__init__(parent)
         self.title("新建服务器")

@@ -8,6 +8,7 @@ import customtkinter as ctk
 
 from app.workspace import WorkspaceMode
 from services.system_service import get_system_info, ping, public_ip, restart_service, service_state, traceroute
+from widgets import Card, PrimaryButton
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
@@ -46,10 +47,10 @@ class SystemInfoPage(ctk.CTkFrame):
         self._summary.pack(fill="x", pady=(0, 12))
         actions = ctk.CTkFrame(self._body, fg_color="transparent")
         actions.pack(fill="x")
-        ctk.CTkButton(actions, text="Refresh", command=self._load_system).pack(side="left")
-        ctk.CTkButton(actions, text="Ping 8.8.8.8", command=lambda: self._diagnose("Ping", ping, "8.8.8.8")).pack(side="left", padx=8)
-        ctk.CTkButton(actions, text="Trace route", command=lambda: self._diagnose("Trace route", traceroute, "8.8.8.8")).pack(side="left")
-        ctk.CTkButton(actions, text="Detect public IP", command=lambda: self._diagnose("Public IP", public_ip)).pack(side="left", padx=8)
+        PrimaryButton(actions, text="Refresh", command=self._load_system).pack(side="left")
+        PrimaryButton(actions, text="Ping 8.8.8.8", command=lambda: self._diagnose("Ping", ping, "8.8.8.8")).pack(side="left", padx=8)
+        PrimaryButton(actions, text="Trace route", command=lambda: self._diagnose("Trace route", traceroute, "8.8.8.8")).pack(side="left")
+        PrimaryButton(actions, text="Detect public IP", command=lambda: self._diagnose("Public IP", public_ip)).pack(side="left", padx=8)
         self._output = ctk.CTkTextbox(self._body, corner_radius=12, font=ctk.CTkFont(family="Consolas", size=11))
         self._output.pack(fill="both", expand=True, pady=12)
         self._load_system()
@@ -86,7 +87,7 @@ class SystemInfoPage(ctk.CTkFrame):
         sql_service = "MSSQLSERVER" if instance.upper() == "MSSQLSERVER" else f"MSSQL${instance}"
         agent_service = "SQLSERVERAGENT" if instance.upper() == "MSSQLSERVER" else f"SQLAgent${instance}"
         services = [(sql_service, f"SQL Server ({instance})"), (agent_service, "SQL Server Agent"), ("WireGuardManager", "WireGuard Manager")]
-        card = ctk.CTkFrame(self._body, corner_radius=12)
+        card = Card(self._body, corner_radius=12)
         card.pack(fill="x")
         for service, label in services:
             row = ctk.CTkFrame(card, fg_color="transparent")
@@ -95,7 +96,7 @@ class SystemInfoPage(ctk.CTkFrame):
             state = ctk.CTkLabel(row, text="Checking...", text_color="#79747E")
             state.pack(side="left", fill="x", expand=True)
             self._service_rows[service] = state
-            ctk.CTkButton(row, text="Restart", width=80, command=lambda s=service: self._restart(s)).pack(side="right")
+            PrimaryButton(row, text="Restart", width=80, command=lambda s=service: self._restart(s)).pack(side="right")
         self._service_status = ctk.CTkLabel(self._body, text="", text_color="#79747E")
         self._service_status.pack(pady=10)
         self._refresh_services()

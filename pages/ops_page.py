@@ -8,6 +8,7 @@ import customtkinter as ctk
 from app.workspace import WorkspaceMode
 from core.project_manager import ProjectManager
 from models.project import Project
+from widgets import Card, PrimaryButton
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
@@ -21,7 +22,7 @@ class OpsInfoPage(ctk.CTkFrame):
         super().__init__(master, corner_radius=0, fg_color="transparent", **kwargs)
         self._app = app
         self._project = project
-        self._entries: Dict[str, ctk.CTkEntry] = {}
+        self._entries: Dict[str, ctk.CTkEntry | ctk.CTkOptionMenu] = {}
         self._build()
 
     def _build(self) -> None:
@@ -30,7 +31,7 @@ class OpsInfoPage(ctk.CTkFrame):
         ctk.CTkLabel(self, text="运维信息", font=ctk.CTkFont(size=20, weight="bold"),
                      ).pack(anchor="w", padx=24, pady=(20, 16))
 
-        card = ctk.CTkFrame(self, corner_radius=12)
+        card = Card(self, title="Remote Connection")
         card.pack(fill="x", padx=24, pady=(0, 12))
 
         fields = [
@@ -83,10 +84,9 @@ class OpsInfoPage(ctk.CTkFrame):
                        command=lambda: self._app.show_dashboard(),
                        ).pack(side="left")
 
-        ctk.CTkButton(act, text="💾 保存", font=ctk.CTkFont(size=13, weight="bold"),
-                       fg_color="#2b7a4b",
-                       command=self._save,
-                       ).pack(side="right")
+        PrimaryButton(act, text="💾 保存", font=ctk.CTkFont(size=13, weight="bold"),
+                      fg_color="#2b7a4b",
+                      command=self._save).pack(side="right")
 
         self._status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
                                      text_color="#79747E")

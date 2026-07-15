@@ -9,6 +9,7 @@ import customtkinter as ctk
 from app.theme import ThemeMode
 from app.workspace import WorkspaceMode, nav_for_mode
 from models.app_settings import AppSettings
+from widgets import Card, PrimaryButton
 
 if TYPE_CHECKING:
     from app.app import GPServerManager
@@ -36,12 +37,8 @@ class SettingsPage(ctk.CTkFrame):
                      ).pack(anchor="w", padx=24, pady=(20, 16))
 
         # ═══ Workspace Mode ═══════════════════════════════════════
-        ws_card = ctk.CTkFrame(self, corner_radius=12)
+        ws_card = Card(self, title="工作模式")
         ws_card.pack(fill="x", padx=24, pady=(0, 12))
-
-        ctk.CTkLabel(ws_card, text="工作模式",
-                     font=ctk.CTkFont(size=14, weight="bold"),
-                     ).pack(anchor="w", padx=16, pady=(10, 6))
 
         frame = ctk.CTkFrame(ws_card, fg_color="transparent")
         frame.pack(fill="x", padx=16, pady=(0, 10))
@@ -74,12 +71,8 @@ class SettingsPage(ctk.CTkFrame):
         ws_ask.pack(anchor="w", pady=2)
 
         # ═══ Theme ════════════════════════════════════════════════
-        theme_card = ctk.CTkFrame(self, corner_radius=12)
+        theme_card = Card(self, title="外观")
         theme_card.pack(fill="x", padx=24, pady=(0, 12))
-
-        ctk.CTkLabel(theme_card, text="外观",
-                     font=ctk.CTkFont(size=14, weight="bold"),
-                     ).pack(anchor="w", padx=16, pady=(10, 6))
 
         theme_row = ctk.CTkFrame(theme_card, fg_color="transparent")
         theme_row.pack(fill="x", padx=16, pady=8)
@@ -99,12 +92,8 @@ class SettingsPage(ctk.CTkFrame):
         ).pack(side="left", padx=(8, 0))
 
         # ═══ Language ════════════════════════════════════════════
-        lang_card = ctk.CTkFrame(self, corner_radius=12)
+        lang_card = Card(self, title="语言")
         lang_card.pack(fill="x", padx=24, pady=(0, 12))
-
-        ctk.CTkLabel(lang_card, text="语言",
-                     font=ctk.CTkFont(size=14, weight="bold"),
-                     ).pack(anchor="w", padx=16, pady=(10, 6))
 
         lang_row = ctk.CTkFrame(lang_card, fg_color="transparent")
         lang_row.pack(fill="x", padx=16, pady=8)
@@ -119,11 +108,8 @@ class SettingsPage(ctk.CTkFrame):
                             font=ctk.CTkFont(size=10))
         sep.pack(pady=(8, 8))
 
-        about = ctk.CTkFrame(self, corner_radius=12)
+        about = Card(self, title="关于")
         about.pack(fill="x", padx=24)
-
-        ctk.CTkLabel(about, text="关于", font=ctk.CTkFont(size=14, weight="bold"),
-                     ).pack(anchor="w", padx=16, pady=(10, 6))
 
         for label, val in [
             ("GP Server Manager", "v2.0 — Workspace"),
@@ -146,10 +132,9 @@ class SettingsPage(ctk.CTkFrame):
                        command=self._go_back,
                        ).pack(side="left")
 
-        ctk.CTkButton(footer, text="💾 保存设置", font=ctk.CTkFont(size=13, weight="bold"),
-                       fg_color="#6750A4",
-                       command=self._save,
-                       ).pack(side="right")
+        PrimaryButton(footer, text="💾 保存设置", font=ctk.CTkFont(size=13, weight="bold"),
+                      fg_color="#6750A4",
+                      command=self._save).pack(side="right")
 
         self._status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
                                      text_color="#79747E")
