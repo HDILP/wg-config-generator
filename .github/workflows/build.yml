@@ -13,7 +13,7 @@ jobs:
         run: pip install -r requirements.txt nuitka
       - name: Compile with Nuitka
         run: >
-          python -m nuitka --onefile --windows-console-mode=disable
+          python -m nuitka --standalone --windows-console-mode=disable
           --enable-plugin=tk-inter --include-package=customtkinter
           --include-package-data=customtkinter
           --include-package=app,backup,core,models,pages,services,utils,widgets
@@ -21,7 +21,8 @@ jobs:
           --assume-yes-for-downloads
           --output-dir=dist --output-filename=GPServerManager
           main.py
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
           name: gp-server-manager-win
-          path: dist/GPServerManager.exe
+          path: dist/GPServerManager.dist/
