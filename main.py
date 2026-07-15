@@ -55,13 +55,14 @@ def main() -> None:
     # Launch app
     from app import GPServerManager
     app = GPServerManager(workspace=workspace, settings=settings)
-    # Speed up scroll wheel for all scrollable frames
-    app.bind_all("<MouseWheel>", lambda e: (
-        e.widget.yview_scroll(-int(e.delta / 40), "units")
-        if hasattr(e.widget, "yview_scroll")
-        else getattr(e.widget.master, "yview_scroll", lambda *_: None)(
-            -int(e.delta / 40), "units")
-    ))
+    # Speed up scroll wheel: walk parents until Canvas, then scroll
+    def _fast_wheel(e):
+        w = e.widget
+        while w is not None and not hasattr(w, "yview_scroll"):
+            w = w.master
+        if w is not None:
+            w.yview_scroll(-int(e.delta / 24), "units")
+    app.bind_all("<MouseWheel>", _fast_wheel)
     app.mainloop()
 
 
