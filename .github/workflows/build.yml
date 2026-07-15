@@ -23,10 +23,14 @@ jobs:
           --include-package-data=customtkinter
           --windows-icon-from-ico=icon.ico
           --include-package=app,backup,core,models,pages,services,utils,widgets
-          --include-data-dir=assets/installers=assets/installers
           --assume-yes-for-downloads
           --output-dir=dist --output-filename=GPServerManager
           main.py
+      - name: Copy installers into dist
+        shell: cmd
+        run: |
+          if not exist "dist\main.dist\assets\installers" mkdir "dist\main.dist\assets\installers"
+          xcopy /Y /I /E "assets\installers\*" "dist\main.dist\assets\installers\"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
