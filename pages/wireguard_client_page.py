@@ -286,6 +286,12 @@ class WireGuardClientPage(ctk.CTkFrame):
                     self.after(0, lambda: self._set_status("✗ 没有生成任何部署包"))
             except Exception as exc:
                 error_text = str(exc)
+                import traceback
+                with open(Path.home() / "gpsm_deploy.log", "w", encoding="utf-8") as f:
+                    f.write(traceback.format_exc())
+                    f.write(f"\nassets dir: {DEPLOY_INSTALLERS}")
+                    f.write(f"\nfiles: TunSafe={DEPLOY_INSTALLERS / 'TunSafe-1.4.exe'}")
+                    f.write(f"\nTunSafe exists: {(DEPLOY_INSTALLERS / 'TunSafe-1.4.exe').is_file()}")
                 self.after(0, lambda: self._set_status(
                     f"✗ 部署包生成失败：{error_text}"))
         threading.Thread(target=_work, daemon=True).start()
