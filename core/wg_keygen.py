@@ -37,6 +37,17 @@ WG_PATHS = [
 ]
 
 
+def find_wg() -> str:
+    """Locate WireGuard binary — for `wg show` status display."""
+    for cmd in [*WG_PATHS, "wg.exe", "wg"]:
+        try:
+            subprocess.run([str(cmd), "--version"], capture_output=True, check=True, timeout=5)
+            return str(cmd)
+        except Exception:
+            continue
+    raise KeyGenError("wg.exe not found (optional for keygen, needed for WireGuard status)")
+
+
 def _wg_path() -> str:
     if not hasattr(_wg_path, "_cached"):
         for cmd in [*WG_PATHS, "wg.exe", "wg"]:

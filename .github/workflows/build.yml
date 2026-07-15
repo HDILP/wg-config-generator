@@ -14,21 +14,21 @@ jobs:
           update: true
           install: >-
             mingw-w64-x86_64-gcc
-      - name: Cache Nuitka compiled modules
+      - name: Cache Nuitka
         uses: actions/cache@v4
         with:
           path: .nuitka-cache
-          key: ${{ runner.os }}-py${{ hashFiles('requirements.txt') }}
+          key: ${{ runner.os }}-mingw64-py${{ hashFiles('requirements.txt') }}
       - name: Install dependencies
         run: pip install -r requirements.txt nuitka
       - name: Compile with Nuitka
         run: >
-          python -m nuitka --standalone --mingw64 --windows-console-mode=disable
-          --cache-dir=.nuitka-cache
+          python -m nuitka --standalone --mingw64 --jobs=4 --windows-console-mode=disable
           --enable-plugin=tk-inter --include-package=customtkinter
           --include-package-data=customtkinter
           --include-package=app,backup,core,models,pages,services,utils,widgets
           --include-data-dir=assets/installers=assets/installers
+          --cache-dir=.nuitka-cache
           --assume-yes-for-downloads
           --output-dir=dist --output-filename=GPServerManager
           main.py
