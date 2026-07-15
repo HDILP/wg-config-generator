@@ -9,11 +9,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.8"
+      - uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
       - name: Install dependencies
         run: pip install -r requirements.txt nuitka
       - name: Compile with Nuitka
         run: >
-          python -m nuitka --standalone --windows-console-mode=disable
+          python -m nuitka --standalone --mingw64 --windows-console-mode=disable
           --enable-plugin=tk-inter --include-package=customtkinter
           --include-package-data=customtkinter
           --include-package=app,backup,core,models,pages,services,utils,widgets
