@@ -19,18 +19,16 @@ if TYPE_CHECKING:
 
 
 def _find_assets() -> Path:
-    """Locate assets/installers/ — dev, Nuitka onefile, or PyInstaller."""
+    """Locate assets/installers/ — works in dev, Nuitka standalone, PyInstaller."""
+    dev = Path(__file__).resolve().parent.parent / "assets" / "installers"
     for base in (
-        Path(getattr(sys, "_MEIPASS", ".")),
-        Path(sys.executable).parent if getattr(sys, "frozen", False) else None,
-        Path(__file__).resolve().parent.parent,
+        Path(getattr(sys, "_MEIPASS", sys.executable)).parent,  # PyInstaller / Nuitka standalone
+        Path(__file__).resolve().parent.parent,                 # dev
     ):
-        if base is None:
-            continue
         p = base / "assets" / "installers"
         if p.is_dir():
             return p
-    return Path(__file__).resolve().parent.parent / "assets" / "installers"
+    return dev
 
 
 DEPLOY_INSTALLERS = _find_assets()
