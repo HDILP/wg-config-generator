@@ -937,34 +937,25 @@ class BackupCenterPage(ctk.CTkFrame):
         instance = self._project.settings.sql.instance if self._project else "MSSQLSERVER"
         top = ctk.CTkToplevel()
         top.title("SQL Server 代理作业")
-        top.geometry("640x400")
+        top.geometry("720x420")
         top.resizable(True, True)
         top.transient()
         top.grab_set()
 
-        frame = ctk.CTkScrollableFrame(top)
-        frame.pack(fill="both", expand=True, padx=12, pady=12)
-
-        lbl = ctk.CTkLabel(frame, text="查询中…", font=ctk.CTkFont(size=11))
-        lbl.pack(anchor="w")
+        txt = ctk.CTkTextbox(top, font=ctk.CTkFont(size=12, family="Consolas"))
+        txt.pack(fill="both", expand=True, padx=12, pady=12)
+        txt.insert("end", "查询中…\n")
 
         def _load():
             jobs = list_sql_backup_jobs(instance)
-            lbl.after(0, lbl.destroy)
+            txt.after(0, txt.delete, "0.0", "end")
             if not jobs:
-                ctk.CTkLabel(frame, text="未找到作业或无法连接",
-                             font=ctk.CTkFont(size=12)).pack()
+                txt.after(0, txt.insert, "end", "未找到作业或无法连接\n")
                 return
+            lines = [f"{'作业名称':<50} {'启用':<6} 上次运行"]
+            lines.append("-" * 76)
             for j in jobs:
-                row = ctk.CTkFrame(frame, fg_color="transparent")
-                row.pack(fill="x", pady=2)
-                ctk.CTkLabel(row, text=j["name"], font=ctk.CTkFont(size=13),
-                             width=300, anchor="w").pack(side="left")
-                ctk.CTkLabel(row, text=j["enabled"], font=ctk.CTkFont(size=11),
-                             width=40, anchor="center",
-                             text_color="#2b7a4b" if j["enabled"] == "是" else "#b33",
-                             ).pack(side="left")
-                ctk.CTkLabel(row, text=j["last_run"], font=ctk.CTkFont(size=11),
-                             text_color="#79747E").pack(side="right")
+                lines.append(f"{j['name']:<50} {j['enabled']:<6}  {j['last_run']}")
+            txt.after(0, txt.insert, "end", "\n".join(lines))
 
         threading.Thread(target=_load, daemon=True).start()
