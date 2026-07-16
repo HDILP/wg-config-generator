@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional
 
+from models.workspace import WorkspaceMode
+
 
 @dataclass
 class NavItem:
