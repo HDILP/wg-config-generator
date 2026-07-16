@@ -1,11 +1,12 @@
 """Icon rendering for GP Server Manager.
 
-Converts Lucide SVG icon names to CTkImage using python-lucide + svgelements + Pillow.
+Converts Lucide SVG icon names to CTkImage using svgelements + Pillow.
 All icons rendered at theme-aware stroke color.
 """
 from __future__ import annotations
 
-import io
+import tempfile
+import os
 from typing import Dict, Optional
 
 import customtkinter as ctk
@@ -30,28 +31,49 @@ def _render_svg_to_image(svg_path_data: str, size: int = 20,
     """
     import svgelements as se
 
-    # SVG viewBox for Lucide icons
     viewBox = "0 0 24 24"
-    vb_parts = viewBox.split()
-    vb_w, vb_h = float(vb_parts[2]), float(vb_parts[3])
 
     # Build a minimal SVG string
-    svg_str = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewBox}" width="{vb_w}" height="{vb_h}">' \
-              f'<path d="{svg_path_data}" fill="none" stroke="{stroke_color}" ' \
-              f'stroke-width="{stroke_width}" stroke-linecap="round" stroke-linejoin="round"/>' \
-              f'</svg>'
+    svg_str = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewBox}" '
+        f'width="24" height="24">'
+        f'<path d="{svg_path_data}" fill="none" stroke="{stroke_color}" '
+        f'stroke-width="{stroke_width}" stroke-linecap="round" '
+        f'stroke-linejoin="round"/>'
+        f'</svg>'
+    )
 
-    # Parse SVG
-    doc = se.parse(svg_str)
-    if not doc.elements:
-        # Fallback: create a blank image
+    # svgelements 1.9.6: SVG.parse() takes a file path, not a string.
+    # Write to temp file, parse, then delete.
+    fd, tmp_path = tempfile.mkstemp(suffix=".svg")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(svg_str)
+        doc = se.SVG.parse(tmp_path)
+        doc.reify()
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    # Collect all Path objects by iterating the doc
+    paths: list[se.Path] = []
+    for obj in doc:
+        if isinstance(obj, se.Path):
+            paths.append(obj)
+
+    if not paths:
+        # Fallback: blank image
         img = Image.new("RGBA", (int(size * scale), int(size * scale)), (0, 0, 0, 0))
         return ctk.CTkImage(light_image=img, dark_image=img, size=(int(size * scale), int(size * scale)))
 
-    # Get bounding box
-    bbox = doc.bbox()
+    # Get bounding box (union of all paths)
+    bbox = paths[0].bbox() if paths else (0, 0, 24, 24)
     bw = bbox[2] - bbox[0]
     bh = bbox[3] - bbox[1]
+    if bw == 0 or bh == 0:
+        bw, bh = 24, 24
 
     # Scale to desired size with padding
     pad = 2
@@ -60,47 +82,52 @@ def _render_svg_to_image(svg_path_data: str, size: int = 20,
     draw = ImageDraw.Draw(img)
 
     # Calculate transform
-    scale_x = (size) / bw if bw else 1
-    scale_y = (size) / bh if bh else 1
+    scale_x = size / bw if bw else 1
+    scale_y = size / bh if bh else 1
     s = min(scale_x, scale_y)
     ox = (size - bw * s) / 2
     oy = (size - bh * s) / 2
 
     # Draw each path element
-    for elem in doc.elements:
-        if isinstance(elem, se.Path):
-            # Convert SVG path to PIL drawing commands
-            points = []
-            for cmd in elem:
-                if cmd.type == se.PathCommand.MOVE:
-                    points.append((cmd.x - bbox[0], cmd.y - bbox[1]))
-                elif cmd.type == se.PathCommand.LINE:
-                    points.append((cmd.x - bbox[0], cmd.y - bbox[1]))
-                elif cmd.type == se.PathCommand.CUBIC:
-                    # Approximate bezier with line segments
-                    for t in [i / 10 for i in range(1, 11)]:
-                        x = (1 - t) ** 3 * elem._data[0][1] + 3 * (1 - t) ** 2 * t * cmd.x1 + \
-                            3 * (1 - t) * t ** 2 * cmd.x2 + t ** 3 * cmd.x
-                        y = (1 - t) ** 3 * elem._data[0][2] + 3 * (1 - t) ** 2 * t * cmd.y1 + \
-                            3 * (1 - t) * t ** 2 * cmd.y2 + t ** 3 * cmd.y
-                        points.append((x - bbox[0], y - bbox[1]))
-                elif cmd.type == se.PathCommand.CLOSE:
-                    if points:
-                        draw.line(
-                            [(p[0] * s + ox, p[1] * s + oy) for p in points],
-                            fill=stroke_color, width=max(1, int(stroke_width * s)),
-                        )
-                    points = []
-                    continue
+    for elem in paths:
+        points: list[tuple[float, float]] = []
+        for cmd in elem:
+            cmd_type = type(cmd).__name__
+            if cmd_type == "Move":
+                points.append((cmd.end.x - bbox[0], cmd.end.y - bbox[1]))
+            elif cmd_type == "Line":
+                points.append((cmd.end.x - bbox[0], cmd.end.y - bbox[1]))
+            elif cmd_type == "HLine":
+                points.append((cmd.end.x - bbox[0], cmd.end.y - bbox[1]))
+            elif cmd_type == "VLine":
+                points.append((cmd.end.x - bbox[0], cmd.end.y - bbox[1]))
+            elif cmd_type == "CubicBezier":
+                points.append((cmd.end.x - bbox[0], cmd.end.y - bbox[1]))
+            elif cmd_type == "Arc":
+                # Approximate arc with line segment from start to end
+                points.append((cmd.end.x - bbox[0], cmd.end.y - bbox[1]))
+            elif cmd_type in ("QuadraticBezier", "SmoothQuadratic"):
+                points.append((cmd.end.x - bbox[0], cmd.end.y - bbox[1]))
+            elif cmd_type == "Close":
+                if points:
+                    draw.line(
+                        [(p[0] * s + ox, p[1] * s + oy) for p in points],
+                        fill=stroke_color, width=max(1, int(stroke_width * s)),
+                    )
+                points = []
+                continue
 
-            if points and len(points) >= 2:
-                draw.line(
-                    [(p[0] * s + ox, p[1] * s + oy) for p in points],
-                    fill=stroke_color, width=max(1, int(stroke_width * s)),
-                    joint="curve",
-                )
-            elif points:
-                draw.point([(points[0][0] * s + ox, points[0][1] * s + oy)], fill=stroke_color)
+        if points and len(points) >= 2:
+            draw.line(
+                [(p[0] * s + ox, p[1] * s + oy) for p in points],
+                fill=stroke_color, width=max(1, int(stroke_width * s)),
+                joint="curve",
+            )
+        elif points:
+            draw.point(
+                [(points[0][0] * s + ox, points[0][1] * s + oy)],
+                fill=stroke_color,
+            )
 
     return ctk.CTkImage(light_image=img, dark_image=img, size=(img_size, img_size))
 
