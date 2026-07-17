@@ -8,6 +8,7 @@ import customtkinter as ctk
 
 from app.theme import C, PAD, CR
 from app.workspace import WorkspaceMode
+from backup import get_engine
 from core.wg_keygen import check_wg_available
 from services.sql_service import get_sql_info
 from services.system_service import get_system_info
@@ -103,6 +104,7 @@ class ServerDashboardPage(ctk.CTkFrame):
         self._status_labels: dict[str, ctk.CTkLabel] = {}
         status_keys = [
             ("SQL", "database"),
+            ("备份", "hard-drive"),
             ("WireGuard", "lock"),
             ("网络", "activity"),
             ("系统", "server"),
@@ -133,10 +135,14 @@ class ServerDashboardPage(ctk.CTkFrame):
         self._refresh()
 
     def _set_pill(self, key: str, value: str, color: str = C["primary"]) -> None:
+        if not self.winfo_exists():
+            return
         if key in self._pills:
             self._pills[key]["value"].configure(text=value, text_color=color)
 
     def _set_status(self, key: str, text: str, ok: bool = True) -> None:
+        if not self.winfo_exists():
+            return
         color = C["success"] if ok else C["error"]
         if key in self._status_labels:
             prefix = "✓" if ok else "✗"
@@ -180,6 +186,21 @@ class ServerDashboardPage(ctk.CTkFrame):
                     "SQL", f"{sql.state}", ok=sql.state == "running"))
             except Exception:
                 self.after(0, lambda: self._set_status("SQL", "unavailable", ok=False))
+
+            try:
+                mp = get_engine("maintenance_plan")
+                if mp:
+                    st = mp.query_status(self._app._server_project.settings.sql.instance)
+                    if st.exists:
+                        ok = st.last_result == "success"
+                        self.after(0, lambda ok=ok, lr=st.last_run or "无": self._set_status(
+                            "备份", f"{'✓' if st.enabled else '✗'} · {lr}", ok=ok))
+                    else:
+                        self.after(0, lambda: self._set_status("备份", "无计划", ok=True))
+                else:
+                    self.after(0, lambda: self._set_status("备份", "引擎不可用", ok=False))
+            except Exception:
+                self.after(0, lambda: self._set_status("备份", "查询失败", ok=False))
 
             try:
                 wg_error = check_wg_available()

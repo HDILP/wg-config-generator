@@ -1,5 +1,5 @@
 {
-  "workspace_mode": "client",
+  "workspace_mode": "server",
   "remember_workspace": true,
   "theme": "light",
   "language": "zh",

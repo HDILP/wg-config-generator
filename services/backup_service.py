@@ -637,7 +637,7 @@ def list_sql_backup_jobs(instance: str = "MSSQLSERVER") -> List[Dict[str, str]]:
                    "WHERE step_id=0 GROUP BY job_id) jh "
                    "ON j.job_id = jh.job_id ORDER BY j.name"],
             capture_output=True, text=True, timeout=15,
-            encoding="utf-8", errors="replace",
+            encoding="gbk", errors="replace",
         )
         rows = []
         for line in r.stdout.splitlines():
@@ -653,6 +653,40 @@ def list_sql_backup_jobs(instance: str = "MSSQLSERVER") -> List[Dict[str, str]]:
                 rows.append(dict(
                     name=parts[0], enabled="是" if parts[1] == "1" else "否",
                     last_run=last_run or "从未运行",
+                ))
+        return rows
+    except Exception:
+        return []
+
+
+def list_maintenance_plans(instance: str = "MSSQLSERVER") -> List[Dict[str, str]]:
+    """Query existing SSMS maintenance plans (read-only)."""
+    if sys.platform != "win32":
+        return []
+    try:
+        r = subprocess.run(
+            ["sqlcmd", "-b", "-S", _server(instance), "-E", "-h", "-1", "-s", "|", "-W",
+             "-Q", "SET NOCOUNT ON; SELECT p.name, p.description, "
+                   "CONVERT(VARCHAR(10), p.create_date, 120) AS create_date, "
+                   "s.subplan_name, "
+                   "ISNULL(job.name, '(无关联作业)') AS job_name "
+                   "FROM msdb.dbo.sysmaintplan_plans p "
+                   "LEFT JOIN msdb.dbo.sysmaintplan_subplans s ON p.id = s.plan_id "
+                   "LEFT JOIN msdb.dbo.sysjobs job ON s.job_id = job.job_id "
+                   "ORDER BY p.name, s.subplan_name"],
+            capture_output=True, text=True, timeout=15,
+            encoding="gbk", errors="replace",
+        )
+        rows = []
+        for line in r.stdout.splitlines():
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) >= 2 and parts[0]:
+                rows.append(dict(
+                    plan_name=parts[0],
+                    description=parts[1] if len(parts) > 1 else "",
+                    create_date=parts[2] if len(parts) > 2 else "",
+                    subplan=parts[3] if len(parts) > 3 else "",
+                    job_name=parts[4] if len(parts) > 4 else "",
                 ))
         return rows
     except Exception:

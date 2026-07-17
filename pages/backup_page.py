@@ -95,6 +95,9 @@ class BackupCenterPage(ctk.CTkFrame):
         ctk.CTkLabel(hdr, text="备份中心", font=ctk.CTkFont(size=18, weight="bold"),
                      text_color=C["on_surface"],
                      ).pack(side="left")
+        self._header_status = ctk.CTkLabel(hdr, text="", font=ctk.CTkFont(size=11),
+                                            text_color=C["outline"])
+        self._header_status.pack(side="left", padx=(12, 0))
         ctk.CTkButton(hdr, text="刷新", width=60, height=28,
                        font=ctk.CTkFont(size=11),
                        fg_color=C["primary"], text_color=C["on_primary"],
@@ -163,6 +166,19 @@ class BackupCenterPage(ctk.CTkFrame):
         ctk.CTkLabel(hrow, text=f"剩余磁盘: {health.remaining_gb}GB" if health.remaining_gb else "",
                      font=ctk.CTkFont(size=11), text_color="#79747E",
                      ).pack(side="right")
+        # Ponytail: MP plan last run in health card
+        mp = get_engine("maintenance_plan")
+        if mp:
+            try:
+                st = mp.query_status(instance)
+                if st.exists:
+                    ok = st.last_result == "success"
+                    ctk.CTkLabel(hrow, text=f"计划: {'成功' if ok else '失败'} ({st.last_run or '无'})",
+                                 font=ctk.CTkFont(size=11),
+                                 text_color="#4CAF50" if ok else "#E53935",
+                                 ).pack(side="right", padx=(8, 0))
+            except Exception:
+                pass
 
         # ═══ Engine selector ═══════════════════════════════════
         engine_card = ctk.CTkFrame(container, corner_radius=12, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
@@ -560,13 +576,35 @@ class BackupCenterPage(ctk.CTkFrame):
 
         history = get_backup_history(self._project)
         if not history:
-            ctk.CTkLabel(container, text="暂无备份记录",
-                         font=ctk.CTkFont(size=13),
-                         text_color="#79747E").pack(pady=30)
-            ctk.CTkButton(container, text="← 返回极速模式", width=110,
-                           font=ctk.CTkFont(size=12),
-                           command=lambda: (self._tab_var.set("quick"), self._switch_tab()),
-                           ).pack()
+            # Ponytail: fallback to agent job history
+            mp = get_engine("maintenance_plan")
+            if mp:
+                try:
+                    st = mp.query_status(self._project.settings.sql.instance)
+                    if st.exists:
+                        ok = st.last_result == "success"
+                        icon = "√" if ok else "×"
+                        card = ctk.CTkFrame(container, corner_radius=8, fg_color=C["card_bg"],
+                                             border_width=1, border_color=C["outline_variant"])
+                        card.pack(fill="x", pady=10, padx=12)
+                        row = ctk.CTkFrame(card, fg_color="transparent")
+                        row.pack(fill="x", padx=12, pady=8)
+                        ctk.CTkLabel(row, text=icon, font=ctk.CTkFont(size=20, weight="bold"),
+                                     text_color="#4CAF50" if ok else "#E53935", width=30).pack(side="left")
+                        ctk.CTkLabel(row, text="计划任务", font=ctk.CTkFont(size=14, weight="bold"),
+                                     width=100, anchor="w").pack(side="left")
+                        ctk.CTkLabel(row, text=st.last_run or "无", font=ctk.CTkFont(size=12),
+                                     text_color="#79747E").pack(side="left", padx=10)
+                except Exception:
+                    pass
+            if not container.winfo_children():
+                ctk.CTkLabel(container, text="暂无备份记录",
+                             font=ctk.CTkFont(size=13),
+                             text_color="#79747E").pack(pady=30)
+                ctk.CTkButton(container, text="← 返回极速模式", width=110,
+                               font=ctk.CTkFont(size=12),
+                               command=lambda: (self._tab_var.set("quick"), self._switch_tab()),
+                               ).pack()
             return
 
         # Group by date
@@ -783,6 +821,16 @@ class BackupCenterPage(ctk.CTkFrame):
 
         self.after(0, lambda: self._render_engine_selector(results))
 
+        # Ponytail: auto-select MP if a plan already exists
+        mp = get_engine("maintenance_plan")
+        if mp:
+            try:
+                st = mp.query_status(instance)
+                if st.exists:
+                    self.after(0, lambda: self._engine_var.set("maintenance_plan"))
+            except Exception:
+                pass
+
     def _render_engine_selector(self, results: list) -> None:
         if not getattr(self, '_alive', False):
             return
@@ -860,6 +908,7 @@ class BackupCenterPage(ctk.CTkFrame):
                 text=f"上次运行: {status.last_run or '无'}  "
                      f"结果: {'成功' if status.last_result == 'success' else '失败' if status.last_result == 'failed' else status.last_result}",
             )
+            self._header_status.configure(text=f"· {status.last_run or '无'} {'成功' if status.last_result == 'success' else '失败'}")
 
     # ── MP actions ────────────────────────────────────────────
 

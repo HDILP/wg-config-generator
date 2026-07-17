@@ -26,81 +26,47 @@ SCHEDULE_NAME = "GP_ServerManager_Backup_Schedule"
 
 
 def _exec_sql(instance: str, query: str, timeout: int = 60) -> Tuple[str, str]:
-    """Execute T-SQL against the server. Returns (stdout, stderr)."""
+    """Execute T-SQL against the server via sqlcmd. Returns (stdout, stderr)."""
     import subprocess
 
     if sys.platform != "win32":
         return "[mock]", ""
 
-    # Try PowerShell / .NET SqlClient first
     try:
-        sq = query.replace("'", "''")
-        conn_str = f"Server={_server(instance)};Database=master;Integrated Security=SSPI;Trusted_Connection=True;"
-        script = f"""
-$conn = New-Object System.Data.SqlClient.SqlConnection("{conn_str}")
-$conn.Open()
-$cmd = $conn.CreateCommand()
-$cmd.CommandTimeout = {timeout}
-$cmd.CommandText = '{sq}'
-try {{
-    $rdr = $cmd.ExecuteReader()
-    $lines = @()
-    do {{ while ($rdr.Read()) {{
-        $vals = for ($i=0; $i -lt $rdr.FieldCount; $i++) {{ $rdr.GetValue($i).ToString() }}
-        $lines += ($vals -join "|")
-    }} }} while ($rdr.NextResult())
-    $rdr.Close()
-    Write-Output ($lines -join "`n")
-}} catch {{
-    Write-Error $_.Exception.Message
-}}
-$conn.Close()
-"""
         r = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", script],
+            ["sqlcmd", "-b", "-S", _server(instance), "-E", "-h", "-1", "-s", "|", "-W",
+             "-Q", f"SET NOCOUNT ON; {query}"],
             capture_output=True, text=True, timeout=timeout + 30,
-            encoding="utf-8", errors="replace",
+            encoding="gbk", errors="replace",
         )
+        if r.returncode != 0:
+            return "", r.stdout.strip() or r.stderr.strip() or f"sqlcmd 退出码 {r.returncode}"
         return r.stdout.strip(), r.stderr.strip()
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+    except FileNotFoundError:
+        return "", "sqlcmd 找不到 — 需要安装 SQL Server 命令行工具"
+    except (subprocess.TimeoutExpired, OSError) as exc:
         return "", str(exc)
 
 
 def _exec_non_query(instance: str, query: str, timeout: int = 60) -> str:
-    """Execute non-query T-SQL (INSERT/UPDATE/EXEC). Returns result or error."""
+    """Execute non-query T-SQL (INSERT/UPDATE/EXEC) via sqlcmd. Returns result or error."""
     if sys.platform != "win32":
         return "OK (mock)"
 
     import subprocess
 
-    conn_str = f"Server={_server(instance)};Database=master;Integrated Security=SSPI;Trusted_Connection=True;"
-    sq = query.replace("'", "''")
-    script = f"""
-$conn = New-Object System.Data.SqlClient.SqlConnection("{conn_str}")
-$conn.Open()
-$cmd = $conn.CreateCommand()
-$cmd.CommandTimeout = {timeout}
-$cmd.CommandText = '{sq}'
-try {{
-    $cmd.ExecuteNonQuery() | Out-Null
-    Write-Output "OK"
-}} catch {{
-    Write-Error $_.Exception.Message
-}}
-$conn.Close()
-"""
     try:
         r = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", script],
+            ["sqlcmd", "-b", "-S", _server(instance), "-E", "-Q", query],
             capture_output=True, text=True, timeout=timeout + 30,
-            encoding="utf-8", errors="replace",
+            encoding="gbk", errors="replace",
         )
-        out = r.stdout.strip()
-        err = r.stderr.strip()
-        if out == "OK":
+        if r.returncode == 0:
             return "OK"
-        return err or out or "Unknown error"
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        return r.stderr.strip() or r.stdout.strip() or f"sqlcmd 退出码 {r.returncode}"
+    except FileNotFoundError:
+        return "sqlcmd 找不到 — 需要安装 SQL Server 命令行工具"
+    except (subprocess.TimeoutExpired, OSError) as exc:
         return str(exc)
 
 
@@ -159,30 +125,30 @@ def _backup_tsql(databases: List[str], save_path: str, compression: bool) -> str
     """Generate T-SQL BACKUP DATABASE statements for multiple databases."""
     import os
     comp = ", COMPRESSION" if compression else ""
-    now = "REPLACE(CONVERT(VARCHAR(8), GETDATE(), 112), '-', '') + '_' + REPLACE(CONVERT(VARCHAR(8), GETDATE(), 108), ':', '')"
-    lines = []
+    dir_path = save_path.replace("'", "''")
+    ts = "CONVERT(VARCHAR(8), GETDATE(), 112) + '_' + REPLACE(CONVERT(VARCHAR(8), GETDATE(), 108), ':', '')"
+
+    lines = [
+        "DECLARE @fname NVARCHAR(500), @dir NVARCHAR(500)",
+    ]
     for db in databases:
-        dir_path = save_path.replace("\\", "\\\\")
-        lines.append(
-            f"DECLARE @fname NVARCHAR(500) = '{dir_path}\\\\'\n"
-            f"    + CONVERT(VARCHAR(8), GETDATE(), 112) + '\\\\'\n"
-            f"    + '{db}_' + REPLACE(CONVERT(VARCHAR(8), GETDATE(), 108), ':', '') + '.bak'\n"
-            f"EXEC msdb.dbo.xp_create_subdir LEFT(@fname, LEN(@fname) - CHARINDEX('\\\\', REVERSE(@fname)) + 1)\n"
-            f"BACKUP DATABASE [{db}] TO DISK = @fname WITH INIT, FORMAT{comp}"
-        )
+        lines.extend([
+            f"SET @fname = '{dir_path}\\' + {ts} + '_{db}.bak'",
+            f"SET @dir = LEFT(@fname, LEN(@fname) - CHARINDEX('\\', REVERSE(@fname)) + 1)",
+            f"BEGIN TRY EXEC msdb.dbo.xp_create_subdir @dir END TRY BEGIN CATCH END CATCH",
+            f"BACKUP DATABASE [{db}] TO DISK = @fname WITH INIT, FORMAT{comp}",
+        ])
     return "\n".join(lines)
 
 
 def _cleanup_tsql(save_path: str, retention_days: int) -> str:
-    """Generate PowerShell cleanup command for old backups."""
-    # Use xp_cmdshell to run PowerShell for file cleanup (if enabled)
-    # Otherwise use a separate approach
+    """Generate cleanup T-SQL for old backups via xp_delete_file (dbfi)."""
     return (
         f"-- Cleanup: delete .bak files older than {retention_days} days\n"
         "DECLARE @retention INT = " + str(retention_days) + "\n"
         "DECLARE @cutoff DATETIME = DATEADD(DAY, -@retention, GETDATE())\n"
-        f"-- Note: file cleanup requires xp_cmdshell or external script\n"
-        "-- See GP Server Manager backup service for file-level cleanup"
+        f"-- File cleanup via xp_delete_file (requires db_owner on msdb)\n"
+        f"-- See GP Server Manager maintenance plan for cleanup logic"
     )
 
 
@@ -256,12 +222,20 @@ class MaintenancePlanEngine(BackupEngine):
                     "请使用「更新」修改，或「删除」后重新创建。")
 
         # Create everything in one batch
-        batch = f"""
+        # Detect current login so we don't hardcode 'sa' (disabled on modern SQL Server)
+        out, _ = _exec_sql(
+            instance,
+            "SELECT SUSER_SNAME()",
+            10,
+        )
+        owner = (out.strip().split("|")[0].strip()) if out and "|" in out else (out.strip() if out else "sa")
+
+        batch = f"""\
 -- Job
 EXEC msdb.dbo.sp_add_job
     @job_name = N'{name}',
     @description = N'GP Server Manager - Auto Database Backup',
-    @owner_login_name = N'sa',
+    @owner_login_name = N'{owner}',
     @enabled = 1
 
 -- Step 1: Backup
@@ -269,7 +243,7 @@ EXEC msdb.dbo.sp_add_jobstep
     @job_name = N'{name}',
     @step_name = N'Backup Databases',
     @subsystem = N'TSQL',
-    @command = N'{backup_sql}',
+    @command = N'{(backup_sql).replace("'", "''")}',
     @database_name = N'master',
     @on_success_action = 3,
     @on_fail_action = 2
@@ -279,7 +253,7 @@ EXEC msdb.dbo.sp_add_jobstep
     @job_name = N'{name}',
     @step_name = N'Cleanup Old Backups',
     @subsystem = N'TSQL',
-    @command = N'{cleanup_sql}',
+    @command = N'{(cleanup_sql).replace("'", "''")}',
     @database_name = N'master'
 
 -- Schedule
@@ -294,9 +268,10 @@ EXEC msdb.dbo.sp_attach_schedule
     @schedule_name = N'{sched_name}'
 
 -- Target local server
+DECLARE @srv_name SYSNAME = CAST(SERVERPROPERTY('ServerName') AS SYSNAME)
 EXEC msdb.dbo.sp_add_jobserver
     @job_name = N'{name}',
-    @server_name = N'(local)'
+    @server_name = @srv_name
 """
         result = _exec_non_query(instance, batch, timeout=30)
         if result != "OK":
@@ -331,7 +306,7 @@ EXEC msdb.dbo.sp_add_jobserver
 EXEC msdb.dbo.sp_update_jobstep
     @job_name = N'{name}',
     @step_id = 1,
-    @command = N'{backup_sql}',
+    @command = N'{(backup_sql).replace("'", "''")}',
     @database_name = N'master'
 
 -- Update schedule time
