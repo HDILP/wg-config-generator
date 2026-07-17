@@ -49,7 +49,10 @@ class GPServerManager(ctk.CTk):
         self.title("GP Server Manager")
         self.geometry(f"{self.WIDTH}x{self.HEIGHT}")
         self.minsize(800, 600)
-
+        # Defer icon set past CTk's own init so it doesn't get overwritten
+        self.after(0, lambda: self.iconbitmap(
+            str(Path(__file__).resolve().parent.parent / "icon.ico")
+        ))
         apply_theme()
 
         # State
