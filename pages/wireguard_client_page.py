@@ -9,8 +9,10 @@ from typing import TYPE_CHECKING, Optional
 
 import customtkinter as ctk
 
+from app.theme import C, PAD, CR
 from app.workspace import WorkspaceMode
 from core.project_manager import ProjectManager
+from utils.icon_loader import load_icon
 from models.project import Project
 from utils.file_ops import ensure_dir, open_folder, write_text
 
@@ -52,24 +54,26 @@ class WireGuardClientPage(ctk.CTkFrame):
 
         ctk.CTkLabel(
             self, text="WireGuard 配置",
-            font=ctk.CTkFont(size=20, weight="bold"),
-        ).pack(anchor="w", padx=24, pady=(20, 16))
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color=C["on_surface"],
+        ).pack(anchor="w", padx=PAD["xl"], pady=(PAD["lg"], PAD["md"]))
 
         if not self._project:
             ctk.CTkLabel(self, text="请先打开一个项目",
                          font=ctk.CTkFont(size=14),
-                         text_color="#79747E").pack(pady=40)
+                         text_color=C["outline"]).pack(pady=40)
             return
 
         s = self._project.settings
 
         # Server info
-        info = ctk.CTkFrame(self, corner_radius=12)
-        info.pack(fill="x", padx=24, pady=(0, 12))
+        info = ctk.CTkFrame(self, corner_radius=CR, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
+        info.pack(fill="x", padx=PAD["xl"], pady=(0, PAD["md"]))
 
         ctk.CTkLabel(info, text="服务器信息",
                      font=ctk.CTkFont(size=14, weight="bold"),
-                     ).pack(anchor="w", padx=16, pady=(10, 6))
+                     text_color=C["on_surface"],
+                     ).pack(anchor="w", padx=PAD["lg"], pady=(PAD["md"], PAD["sm"]))
 
         for label, val in [
             ("公网 IP", s.public_ip or "未设置"),
@@ -81,18 +85,19 @@ class WireGuardClientPage(ctk.CTkFrame):
             row = ctk.CTkFrame(info, fg_color="transparent")
             row.pack(fill="x", padx=16, pady=2)
             ctk.CTkLabel(row, text=label, font=ctk.CTkFont(size=12),
-                         text_color="#79747E", width=80).pack(side="left")
+                         text_color=C["outline"], width=80).pack(side="left")
             ctk.CTkLabel(row, text=val, font=ctk.CTkFont(size=12),
                          anchor="w").pack(side="left", fill="x", expand=True)
 
         # Edit server conf
-        edit_frame = ctk.CTkFrame(self, corner_radius=12)
-        edit_frame.pack(fill="x", padx=24, pady=(0, 12))
+        edit_frame = ctk.CTkFrame(self, corner_radius=CR, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
+        edit_frame.pack(fill="x", padx=PAD["xl"], pady=(0, PAD["md"]))
         ctk.CTkLabel(edit_frame, text="服务端配置",
                      font=ctk.CTkFont(size=14, weight="bold"),
-                     ).pack(anchor="w", padx=16, pady=(10, 6))
+                     text_color=C["on_surface"],
+                     ).pack(anchor="w", padx=PAD["lg"], pady=(PAD["md"], PAD["sm"]))
         row = ctk.CTkFrame(edit_frame, fg_color="transparent")
-        row.pack(fill="x", padx=16, pady=(0, 10))
+        row.pack(fill="x", padx=PAD["lg"], pady=(0, PAD["md"]))
         ctk.CTkButton(row, text="📝 编辑 server.conf", height=32,
                        command=self._edit_server_conf).pack(side="left", padx=(0, 8))
         ctk.CTkButton(row, text="📂 打开目录", height=32,
@@ -102,15 +107,17 @@ class WireGuardClientPage(ctk.CTkFrame):
         # Client list
         ctk.CTkLabel(self, text=f"客户端 ({len(self._project.clients)})",
                      font=ctk.CTkFont(size=14, weight="bold"),
-                     ).pack(anchor="w", padx=24, pady=(8, 6))
+                     text_color=C["on_surface"],
+                     ).pack(anchor="w", padx=PAD["xl"], pady=(0, PAD["sm"]))
 
-        scroll = ctk.CTkScrollableFrame(self, corner_radius=12, height=200)
-        scroll.pack(fill="x", padx=24, pady=(0, 12))
+        scroll = ctk.CTkScrollableFrame(self, corner_radius=CR, height=200,
+                                         fg_color=C["card_bg"])
+        scroll.pack(fill="x", padx=PAD["xl"], pady=(0, PAD["md"]))
 
 
         if not self._project.clients:
             ctk.CTkLabel(scroll, text="暂无客户端",
-                         text_color="#79747E",
+                         text_color=C["outline"],
                          font=ctk.CTkFont(size=12)).pack(pady=20)
         else:
             for i, c in enumerate(self._project.clients, 1):
@@ -122,22 +129,29 @@ class WireGuardClientPage(ctk.CTkFrame):
                 ctk.CTkLabel(row, text=c.name, font=ctk.CTkFont(size=13),
                              anchor="w", width=120).pack(side="left")
                 ctk.CTkLabel(row, text=c.vpn_ip, font=ctk.CTkFont(size=12),
-                             text_color="#79747E", width=100).pack(side="left")
+                             text_color=C["outline"], width=100).pack(side="left")
 
                 btn_frame = ctk.CTkFrame(row, fg_color="transparent")
                 btn_frame.pack(side="right")
-                ctk.CTkButton(btn_frame, text="📁", width=28, height=24,
-                              font=ctk.CTkFont(size=10),
+                ctk.CTkButton(btn_frame, text="",
+                              image=load_icon("folder-open", 14, C["outline"]),
+                              width=28, height=24,
                               command=lambda n=c.name: open_folder(
                                   self._project.dir / "clients" / n),
+                              fg_color="transparent", hover_color=C["surface_variant"],
+                              corner_radius=4,
                               ).pack(side="left", padx=2)
-                ctk.CTkButton(btn_frame, text="📱", width=28, height=24,
-                              font=ctk.CTkFont(size=10),
+                ctk.CTkButton(btn_frame, text="",
+                              image=load_icon("save", 14, C["outline"]),
+                              width=28, height=24,
                               command=lambda n=c.name: self._export_qr(n),
+                              fg_color="transparent", hover_color=C["surface_variant"],
+                              corner_radius=4,
                               ).pack(side="left", padx=2)
                 ctk.CTkButton(btn_frame, text="✕", width=28, height=24,
-                              fg_color="#b33", hover_color="#922",
-                              font=ctk.CTkFont(size=10),
+                              font=ctk.CTkFont(size=12),
+                              fg_color="transparent",
+                              hover_color="#FFEBEE", corner_radius=4,
                               command=lambda n=c.name: self._remove_client(n),
                               ).pack(side="left", padx=2)
 
@@ -160,10 +174,10 @@ class WireGuardClientPage(ctk.CTkFrame):
                        font=ctk.CTkFont(size=12),
                        fg_color="#6750A4",
                        command=self._open_deploy_dialog,
-                       ).pack(anchor="w", padx=24, pady=(8, 0))
+                       ).pack(anchor="w", padx=PAD["xl"], pady=(8, 0))
 
         self._status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
-                                     text_color="#79747E")
+                                     text_color=C["outline"])
         self._status.pack(pady=(8, 4))
 
     def refresh(self) -> None:
@@ -404,7 +418,7 @@ class _DeployDialog(ctk.CTkToplevel):
                      font=ctk.CTkFont(size=14, weight="bold"),
                      ).pack(anchor="w", padx=20, pady=(16, 8))
 
-        scroll = ctk.CTkScrollableFrame(self, height=180, corner_radius=8)
+        scroll = ctk.CTkScrollableFrame(self, height=180, corner_radius=8, fg_color=C["card_bg"])
         scroll.pack(fill="x", padx=20)
 
         self._rows: list[tuple[str, ctk.BooleanVar, ctk.StringVar]] = []
@@ -463,14 +477,14 @@ class _AddClientDialog(ctk.CTkToplevel):
         ctk.CTkLabel(self, text="客户端名称", font=ctk.CTkFont(size=13),
                      anchor="w").pack(fill="x", padx=20, pady=(16, 4))
         self._name = ctk.CTkEntry(self, font=ctk.CTkFont(size=13))
-        self._name.pack(fill="x", padx=20, pady=(0, 8))
+        self._name.pack(fill="x", padx=20, pady=(0, PAD["md"]))
 
         ctk.CTkLabel(self, text="VPN IP（留空自动分配）",
                      font=ctk.CTkFont(size=13), anchor="w",
                      ).pack(fill="x", padx=20, pady=(4, 4))
         self._ip = ctk.CTkEntry(self, font=ctk.CTkFont(size=13))
         self._ip.insert(0, suggested_ip)
-        self._ip.pack(fill="x", padx=20, pady=(0, 12))
+        self._ip.pack(fill="x", padx=20, pady=(0, PAD["md"]))
 
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(fill="x", padx=20)

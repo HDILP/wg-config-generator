@@ -9,7 +9,6 @@ from pages.backup_page import BackupCenterPage
 from pages.client_dashboard_page import ClientDashboardPage
 from pages.customers_page import CustomersPage
 from pages.firewall_page import FirewallPage
-from pages.ops_page import OpsInfoPage
 from pages.projects_page import ProjectsPage
 from pages.server_dashboard_page import ServerDashboardPage
 from pages.settings_page import SettingsPage
@@ -23,7 +22,6 @@ __all__ = [
     "ClientDashboardPage",
     "CustomersPage",
     "FirewallPage",
-    "OpsInfoPage",
     "ProjectsPage",
     "ServerDashboardPage",
     "SettingsPage",

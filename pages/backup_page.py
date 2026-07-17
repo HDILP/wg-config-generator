@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 
 import customtkinter as ctk
 
+from app.theme import C, PAD
 from app.workspace import WorkspaceMode
 from core.project_manager import ProjectManager
 from models.backup import BackupPolicy
@@ -90,63 +91,59 @@ class BackupCenterPage(ctk.CTkFrame):
 
         # ── Header ────────────────────────────────────────────
         hdr = ctk.CTkFrame(self, fg_color="transparent")
-        hdr.pack(fill="x", padx=24, pady=(20, 8))
-        ctk.CTkLabel(hdr, text="Backup Center", font=ctk.CTkFont(size=20, weight="bold"),
+        hdr.pack(fill="x", padx=PAD["xl"], pady=(PAD["lg"], PAD["md"]))
+        ctk.CTkLabel(hdr, text="备份中心", font=ctk.CTkFont(size=18, weight="bold"),
+                     text_color=C["on_surface"],
                      ).pack(side="left")
-        ctk.CTkButton(hdr, text="🔄 刷新", width=70, height=28,
+        ctk.CTkButton(hdr, text="刷新", width=60, height=28,
                        font=ctk.CTkFont(size=11),
-                       command=self.refresh).pack(side="right", padx=(6, 0))
-        ctk.CTkButton(hdr, text="📂 打开目录", width=90, height=28,
+                       fg_color=C["primary"], text_color=C["on_primary"],
+                       hover_color=C["primary_hover"], corner_radius=8,
+                       command=self.refresh).pack(side="right", padx=(PAD["sm"], 0))
+        ctk.CTkButton(hdr, text="打开目录", width=80, height=28,
                        font=ctk.CTkFont(size=11),
+                       fg_color=C["primary"], text_color=C["on_primary"],
+                       hover_color=C["primary_hover"], corner_radius=8,
                        command=lambda: open_folder(Path(policy.save_path)),
                        ).pack(side="right")
 
-        # ── Sub-nav tabs ──────────────────────────────────────
-        tab_frame = ctk.CTkFrame(self, fg_color="transparent")
-        tab_frame.pack(fill="x", padx=24, pady=(4, 12))
+        # ── Tab view ──────────────────────────────────────────
+        self._tab_view = ctk.CTkTabview(self, corner_radius=12,
+                                         fg_color=C["card_bg"],
+                                         segmented_button_fg_color=C["container_bg"],
+                                         segmented_button_selected_color=C["primary"],
+                                         segmented_button_selected_hover_color=C["primary_hover"],
+                                         segmented_button_unselected_color=C["card_bg"],
+                                         text_color=C["on_surface"],
+                                         segmented_button_unselected_hover_color=C["surface_variant"],
+                                         )
+        self._tab_view.pack(fill="both", expand=True, padx=PAD["xl"], pady=(0, PAD["md"]))
 
-        self._tab_var = ctk.StringVar(value="quick")
-        tabs = [("极速模式", "quick"), ("历史记录", "history"),
-                ("恢复", "restore"), ("备份浏览器", "browser")]
-        for label, val in tabs:
-            ctk.CTkRadioButton(tab_frame, text=label, variable=self._tab_var,
-                               value=val, font=ctk.CTkFont(size=13),
-                               command=self._switch_tab,
-                               ).pack(side="left", padx=(0, 16))
+        # Add tabs
+        self._tab_quick = self._tab_view.add("极速备份")
+        self._tab_history = self._tab_view.add("历史")
+        self._tab_restore = self._tab_view.add("恢复")
+        self._tab_browser = self._tab_view.add("文件")
 
-        # ── Content container ──────────────────────────────────
-        self._tab_content = ctk.CTkFrame(self, fg_color="transparent")
-        self._tab_content.pack(fill="both", expand=True, padx=24, pady=(0, 12))
-
-        self._switch_tab()
-
-    def _switch_tab(self) -> None:
-        for w in self._tab_content.winfo_children():
-            w.destroy()
-
-        tab = self._tab_var.get()
-        if tab == "quick":
-            self._build_quick_mode()
-        elif tab == "history":
-            self._build_history()
-        elif tab == "restore":
-            self._build_restore()
-        elif tab == "browser":
-            self._build_browser()
+        # Build content into each tab
+        self._build_quick_mode(self._tab_quick)
+        self._build_history(self._tab_history)
+        self._build_restore(self._tab_restore)
+        self._build_browser(self._tab_browser)
 
     # ═══════════════════════════════════════════════════════════════
     #  Quick mode (default)
     # ═══════════════════════════════════════════════════════════════
 
-    def _build_quick_mode(self) -> None:
+    def _build_quick_mode(self, parent) -> None:
         policy = self._project.settings.backup
         instance = self._project.settings.sql.instance
-        container = ctk.CTkScrollableFrame(self._tab_content, corner_radius=0,
-                                            fg_color="transparent")
+        container = ctk.CTkScrollableFrame(parent, corner_radius=0,
+                                            fg_color=C["card_bg"])
         container.pack(fill="both", expand=True)
 
         # Health summary card
-        self._health_card = ctk.CTkFrame(container, corner_radius=12)
+        self._health_card = ctk.CTkFrame(container, corner_radius=12, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
         self._health_card.pack(fill="x", pady=(0, 12))
 
         health = get_backup_health(self._project)
@@ -168,7 +165,7 @@ class BackupCenterPage(ctk.CTkFrame):
                      ).pack(side="right")
 
         # ═══ Engine selector ═══════════════════════════════════
-        engine_card = ctk.CTkFrame(container, corner_radius=12)
+        engine_card = ctk.CTkFrame(container, corner_radius=12, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
         engine_card.pack(fill="x", pady=(0, 8))
 
         ctk.CTkLabel(engine_card, text="备份方式",
@@ -189,7 +186,7 @@ class BackupCenterPage(ctk.CTkFrame):
         self._engine_status_label.pack(anchor="w", padx=16, pady=(0, 10))
 
         # ═══ Enable toggle ═════════════════════════════════════
-        enable_frame = ctk.CTkFrame(container, corner_radius=12)
+        enable_frame = ctk.CTkFrame(container, corner_radius=12, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
         enable_frame.pack(fill="x", pady=(0, 8))
 
         self._enable_var = ctk.BooleanVar(value=policy.enabled)
@@ -200,7 +197,7 @@ class BackupCenterPage(ctk.CTkFrame):
                        ).pack(anchor="w", padx=16, pady=10)
 
         # ═══ Database selection ════════════════════════════════
-        db_card = ctk.CTkFrame(container, corner_radius=12)
+        db_card = ctk.CTkFrame(container, corner_radius=12, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
         db_card.pack(fill="x", pady=(0, 8))
 
         ctk.CTkLabel(db_card, text="备份数据库（可多选）",
@@ -227,7 +224,7 @@ class BackupCenterPage(ctk.CTkFrame):
         self._size_label.pack(anchor="w", padx=16, pady=(0, 8))
 
         # ═══ Schedule ═════════════════════════════════════════
-        sched_card = ctk.CTkFrame(container, corner_radius=12)
+        sched_card = ctk.CTkFrame(container, corner_radius=12, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
         sched_card.pack(fill="x", pady=(0, 8))
 
         ctk.CTkLabel(sched_card, text="执行时间",
@@ -251,7 +248,7 @@ class BackupCenterPage(ctk.CTkFrame):
                      font=ctk.CTkFont(size=13)).pack(side="left")
 
         # ═══ Save path ═════════════════════════════════════════
-        path_card = ctk.CTkFrame(container, corner_radius=12)
+        path_card = ctk.CTkFrame(container, corner_radius=12, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
         path_card.pack(fill="x", pady=(0, 8))
 
         ctk.CTkLabel(path_card, text="保存目录",
@@ -262,7 +259,7 @@ class BackupCenterPage(ctk.CTkFrame):
         self._path_entry.pack(fill="x", padx=16, pady=(4, 10))
 
         # ═══ Retention ════════════════════════════════════════
-        ret_card = ctk.CTkFrame(container, corner_radius=12)
+        ret_card = ctk.CTkFrame(container, corner_radius=12, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
         ret_card.pack(fill="x", pady=(0, 8))
 
         ret_row = ctk.CTkFrame(ret_card, fg_color="transparent")
@@ -277,7 +274,7 @@ class BackupCenterPage(ctk.CTkFrame):
                      font=ctk.CTkFont(size=13)).pack(side="left")
 
         # ═══ Compression ══════════════════════════════════════
-        comp_card = ctk.CTkFrame(container, corner_radius=12)
+        comp_card = ctk.CTkFrame(container, corner_radius=12, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
         comp_card.pack(fill="x", pady=(0, 8))
 
         self._comp_var = ctk.BooleanVar(value=policy.compression)
@@ -313,7 +310,7 @@ class BackupCenterPage(ctk.CTkFrame):
         self._immediate_btn = ctk.CTkButton(
             act, text="⚡ 立即备份",
             font=ctk.CTkFont(size=13, weight="bold"),
-            fg_color="#2b7a4b", hover_color="#1e5f38",
+            fg_color="#6750A4", hover_color="#7C6DB5",
             command=self._do_immediate_backup,
         )
         self._immediate_btn.pack(side="right", padx=(6, 0))
@@ -556,9 +553,9 @@ class BackupCenterPage(ctk.CTkFrame):
     #  History tab
     # ═══════════════════════════════════════════════════════════════
 
-    def _build_history(self) -> None:
-        container = ctk.CTkScrollableFrame(self._tab_content, corner_radius=0,
-                                            fg_color="transparent")
+    def _build_history(self, parent) -> None:
+        container = ctk.CTkScrollableFrame(parent, corner_radius=0,
+                                            fg_color=C["card_bg"])
         container.pack(fill="both", expand=True)
 
         history = get_backup_history(self._project)
@@ -586,7 +583,8 @@ class BackupCenterPage(ctk.CTkFrame):
                              ).pack(anchor="w", pady=(12, 4))
 
             # Entry card
-            card = ctk.CTkFrame(container, corner_radius=8)
+            card = ctk.CTkFrame(container, corner_radius=8, fg_color=C["card_bg"],
+                                 border_width=1, border_color=C["outline_variant"])
             card.pack(fill="x", pady=3)
 
             ok = entry.get("status") == "success"
@@ -621,15 +619,15 @@ class BackupCenterPage(ctk.CTkFrame):
     #  Restore tab
     # ═══════════════════════════════════════════════════════════════
 
-    def _build_restore(self) -> None:
-        container = ctk.CTkFrame(self._tab_content, fg_color="transparent")
+    def _build_restore(self, parent) -> None:
+        container = ctk.CTkFrame(parent, fg_color="transparent")
         container.pack(fill="both", expand=True)
 
         ctk.CTkLabel(container, text="恢复数据库",
                      font=ctk.CTkFont(size=17, weight="bold"),
                      ).pack(anchor="w", pady=(0, 12))
 
-        card = ctk.CTkFrame(container, corner_radius=12)
+        card = ctk.CTkFrame(container, corner_radius=12, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
         card.pack(fill="x")
 
         # Backup file selection
@@ -730,8 +728,8 @@ class BackupCenterPage(ctk.CTkFrame):
     #  Backup Browser tab
     # ═══════════════════════════════════════════════════════════════
 
-    def _build_browser(self) -> None:
-        container = ctk.CTkFrame(self._tab_content, fg_color="transparent")
+    def _build_browser(self, parent) -> None:
+        container = ctk.CTkFrame(parent, fg_color="transparent")
         container.pack(fill="both", expand=True)
 
         ctk.CTkLabel(container, text="备份浏览器",
@@ -745,7 +743,7 @@ class BackupCenterPage(ctk.CTkFrame):
                          text_color="#79747E").pack(pady=20)
             return
 
-        scroll = ctk.CTkScrollableFrame(container, corner_radius=12)
+        scroll = ctk.CTkScrollableFrame(container, corner_radius=12, fg_color=C["card_bg"])
         scroll.pack(fill="both", expand=True)
 
         # Group by directory

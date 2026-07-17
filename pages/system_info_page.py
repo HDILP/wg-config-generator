@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
+from app.theme import C, PAD, CR
 from app.workspace import WorkspaceMode
 from services.system_service import get_system_info, ping, public_ip, restart_service, service_state, traceroute
 
@@ -22,95 +23,102 @@ class SystemInfoPage(ctk.CTkFrame):
         self._build()
 
     def _build(self) -> None:
-        title = "System information" if self._tab == "system" else "Service management"
-        ctk.CTkLabel(self, text=title, font=ctk.CTkFont(size=20, weight="bold")).pack(anchor="w", padx=24, pady=(20, 12))
-        tabs = ctk.CTkFrame(self, fg_color="transparent")
-        tabs.pack(fill="x", padx=24)
-        self._tab_var = ctk.StringVar(value=self._tab)
-        for text, value in (("System information", "system"), ("Service management", "services")):
-            ctk.CTkRadioButton(tabs, text=text, variable=self._tab_var, value=value, command=self._switch).pack(side="left", padx=(0, 16))
+        ctk.CTkLabel(self, text="系统信息",
+                     font=ctk.CTkFont(size=18, weight="bold"),
+                     text_color=C["on_surface"],
+                     ).pack(anchor="w", padx=PAD["xl"], pady=(PAD["lg"], PAD["md"]))
         self._body = ctk.CTkFrame(self, fg_color="transparent")
-        self._body.pack(fill="both", expand=True, padx=24, pady=12)
-        self._switch()
-
-    def _switch(self) -> None:
-        for child in self._body.winfo_children():
-            child.destroy()
-        if self._tab_var.get() == "system":
-            self._build_system()
-        else:
-            self._build_services()
+        self._body.pack(fill="both", expand=True, padx=PAD["xl"], pady=(0, PAD["md"]))
+        self._build_system()
+        self._build_services()
 
     def _build_system(self) -> None:
-        self._summary = ctk.CTkLabel(self._body, text="Loading system information...", justify="left", anchor="w")
-        self._summary.pack(fill="x", pady=(0, 12))
+        card = ctk.CTkFrame(self._body, corner_radius=CR, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
+        card.pack(fill="x", pady=(0, PAD["md"]))
+        self._summary = ctk.CTkLabel(card, text="加载系统信息中...",
+                                      justify="left", anchor="w",
+                                      font=ctk.CTkFont(size=12),
+                                      text_color=C["on_surface"],
+                                      )
+        self._summary.pack(fill="x", padx=PAD["lg"], pady=PAD["md"])
+
         actions = ctk.CTkFrame(self._body, fg_color="transparent")
         actions.pack(fill="x")
-        ctk.CTkButton(actions, text="Refresh", command=self._load_system).pack(side="left")
-        ctk.CTkButton(actions, text="Ping 8.8.8.8", command=lambda: self._diagnose("Ping", ping, "8.8.8.8")).pack(side="left", padx=8)
-        ctk.CTkButton(actions, text="Trace route", command=lambda: self._diagnose("Trace route", traceroute, "8.8.8.8")).pack(side="left")
-        ctk.CTkButton(actions, text="Detect public IP", command=lambda: self._diagnose("Public IP", public_ip)).pack(side="left", padx=8)
-        self._output = ctk.CTkTextbox(self._body, corner_radius=12, font=ctk.CTkFont(family="Consolas", size=11))
-        self._output.pack(fill="both", expand=True, pady=12)
-        self._load_system()
+        ctk.CTkButton(actions, text="刷新",
+                       fg_color="transparent", text_color=C["on_surface_variant"],
+                       hover_color=C["surface_variant"], corner_radius=8,
+                       font=ctk.CTkFont(size=12),
+                       command=self._load_system,
+                       ).pack(side="left")
+        threading.Thread(target=self._load_system, daemon=True).start()
 
     def _load_system(self) -> None:
-        threading.Thread(target=self._load_system_worker, daemon=True).start()
-
-    def _load_system_worker(self) -> None:
-        info = get_system_info()
         try:
-            external = public_ip()
-        except Exception:
-            external = "unavailable"
-        text = (f"Host: {info.hostname}\nOS: {info.os_version}\nCPU: {info.cpu_count} cores, {info.cpu_percent}%\n"
-                f"Memory: {info.memory_percent}% of {info.total_ram_gb} GB\nDisk: {info.disk_percent}%\n"
-                f"Uptime: {info.uptime_days} days\nLocal IP: {info.ip_addresses or 'unavailable'}\nPublic IP: {external}")
-        self.after(0, lambda: self._summary.configure(text=text))
-
-    def _diagnose(self, label, func, *args) -> None:
-        self._output.insert("end", f"\n> {label}...\n")
-        threading.Thread(target=self._diagnose_worker, args=(func, args), daemon=True).start()
-
-    def _diagnose_worker(self, func, args) -> None:
-        try:
-            result = func(*args)
+            info = get_system_info()
+            lines = [
+                f"主机名: {info.hostname}",
+                f"系统: {info.os_version}",
+                f"CPU: {info.cpu_percent}% ({info.cpu_count} 核)",
+                f"内存: {info.memory_percent}% ({info.total_ram_gb:.1f} GB)",
+                f"磁盘: {info.disk_percent}%",
+                f"运行时间: {info.uptime_days} 天",
+                f"内网 IP: {', '.join(info.ip_addresses) if info.ip_addresses else '无'}",
+                f"公网 IP: {public_ip() or '获取失败'}",
+            ]
+            text = "\n".join(lines)
+            self.after(0, lambda: self._safe_configure(self._summary, text=text))
         except Exception as exc:
-            result = f"Error: {exc}"
-        self.after(0, lambda: (self._output.insert("end", result + "\n"), self._output.see("end")))
+            self.after(0, lambda e=exc: self._safe_configure(self._summary, text=f"获取失败: {e}"))
+
+    def _safe_configure(self, widget, **kwargs):
+        """Configure a widget only if it still exists (handles race with page destroy)."""
+        try:
+            if widget.winfo_exists():
+                widget.configure(**kwargs)
+        except Exception:
+            pass
 
     def _build_services(self) -> None:
-        ctk.CTkLabel(self._body, text="Restart is performed only after the service state has been checked.", text_color="#79747E").pack(anchor="w", pady=(0, 8))
-        self._service_rows: dict[str, ctk.CTkLabel] = {}
-        instance = self._app._server_project.settings.sql.instance
-        sql_service = "MSSQLSERVER" if instance.upper() == "MSSQLSERVER" else f"MSSQL${instance}"
-        agent_service = "SQLSERVERAGENT" if instance.upper() == "MSSQLSERVER" else f"SQLAgent${instance}"
-        services = [(sql_service, f"SQL Server ({instance})"), (agent_service, "SQL Server Agent"), ("WireGuardManager", "WireGuard Manager")]
-        card = ctk.CTkFrame(self._body, corner_radius=12)
-        card.pack(fill="x")
-        for service, label in services:
-            row = ctk.CTkFrame(card, fg_color="transparent")
-            row.pack(fill="x", padx=16, pady=6)
-            ctk.CTkLabel(row, text=label, width=210, anchor="w").pack(side="left")
-            state = ctk.CTkLabel(row, text="Checking...", text_color="#79747E")
-            state.pack(side="left", fill="x", expand=True)
-            self._service_rows[service] = state
-            ctk.CTkButton(row, text="Restart", width=80, command=lambda s=service: self._restart(s)).pack(side="right")
-        self._service_status = ctk.CTkLabel(self._body, text="", text_color="#79747E")
-        self._service_status.pack(pady=10)
-        self._refresh_services()
+        self._svc_card = ctk.CTkFrame(self._body, corner_radius=CR, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
+        self._svc_card.pack(fill="x", pady=(0, PAD["md"]))
 
-    def _refresh_services(self) -> None:
-        threading.Thread(target=self._service_worker, daemon=True).start()
+        services = ["MSSQLSERVER", "SQLSERVERAGENT", "WinRM"]
+        self._svc_labels = {}
+        for svc in services:
+            row = ctk.CTkFrame(self._svc_card, fg_color="transparent")
+            row.pack(fill="x", padx=PAD["lg"], pady=4)
+            ctk.CTkLabel(row, text=svc, font=ctk.CTkFont(size=13, weight="bold"),
+                         text_color=C["on_surface"], width=140,
+                         ).pack(side="left")
+            lbl = ctk.CTkLabel(row, text="检查中…", font=ctk.CTkFont(size=12),
+                                text_color=C["outline"], width=80)
+            lbl.pack(side="left")
+            self._svc_labels[svc] = lbl
+            ctk.CTkButton(row, text="重启", width=50, height=24,
+                           font=ctk.CTkFont(size=10),
+                           fg_color="transparent", text_color=C["on_surface_variant"],
+                           hover_color=C["surface_variant"], corner_radius=6,
+                           command=lambda s=svc: self._restart_svc(s),
+                           ).pack(side="right", padx=(PAD["sm"], 0))
 
-    def _service_worker(self) -> None:
-        states = {name: service_state(name) for name in self._service_rows}
-        self.after(0, lambda: [self._service_rows[name].configure(text=value) for name, value in states.items()])
+        threading.Thread(target=self._check_svcs, daemon=True).start()
 
-    def _restart(self, service: str) -> None:
-        self._service_status.configure(text=f"Restarting {service}...")
-        threading.Thread(target=self._restart_worker, args=(service,), daemon=True).start()
+    def _check_svcs(self) -> None:
+        for svc in self._svc_labels:
+            try:
+                state = service_state(svc)
+                lbl = self._svc_labels[svc]
+                self.after(0, lambda s=svc, l=lbl, st=state: self._safe_configure(
+                    l, text=st, text_color=C["success"] if st == "running" else C["error"]))
+            except Exception:
+                pass
 
-    def _restart_worker(self, service: str) -> None:
-        result = restart_service(service)
-        self.after(0, lambda: (self._service_status.configure(text=result), self._refresh_services()))
+    def _restart_svc(self, name: str) -> None:
+        self._safe_configure(self._svc_labels[name], text="重启中…", text_color=C["warning"])
+        threading.Thread(target=self._restart_worker, args=(name,), daemon=True).start()
+
+    def _restart_worker(self, name: str) -> None:
+        result = restart_service(name)
+        lbl = self._svc_labels[name]
+        self.after(0, lambda l=lbl, r=result: self._safe_configure(
+            l, text=r, text_color=C["success"] if "OK" in r else C["error"]))

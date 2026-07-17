@@ -5,7 +5,7 @@
 ```
 启动 → WorkspaceLauncher → Server Mode / Client Mode
   Server Mode: 服务器本机操作（SQL/WireGuard/防火墙/备份/服务/系统信息）
-  Client Mode: 运维电脑操作（项目/客户/WireGuard配置/部署包/运维信息）
+  Client Mode: 运维电脑操作（项目/客户/WireGuard配置）
 
 每页声明 WORKSPACE = SERVER / CLIENT / BOTH
 app.py 根据 mode 自动切换侧边栏 + 过滤页面路由
@@ -27,7 +27,7 @@ main.py
 
 ### app/ — Application Shell
 - `app.py`: GPServerManager (CTk). Grid 布局: sidebar | content.
-- `theme.py`: Material You LIGHT/DARK palettes, applied via `ctk.set_appearance_mode`.
+- `theme.py`: 设计 token（C/PAD/CR constants），浅色模式，`apply_theme()` 单色调用
 
 ### backup/ — Backup Engine (Pluggable)
 - `engine.py`: `BackupEngine` ABC. Methods: `create_plan`, `update_plan`, `delete_plan`, `enable`, `disable`, `query_status`, `probe`.
@@ -61,8 +61,8 @@ Each page is a `CTkFrame` subclass constructed via `app._switch_to(PageClass, se
 | Firewall | `firewall_page.py` | SERVER | Service toggles + Custom port |
 | Backup Center | `backup_page.py` | SERVER | Quick Mode / History / Restore / Browser |
 | System Info | `system_info_page.py` | SERVER | 系统信息 / 服务管理 |
-| Ops Info | `ops_page.py` | CLIENT | Editable ops form |
-| Settings | `settings_page.py` | BOTH | Workspace mode / Theme / About |
+| Ops Info | `ops_page.py` | CLIENT | Editable ops form（已合并到 Client Dashboard）|
+|| Settings | `settings_page.py` | BOTH | Workspace mode / About |
 
 ### services/ — Backend Services
 - `backup_service.py`: Immediate backup, history, file browser, health, cleanup, SQL Agent job list.
@@ -79,6 +79,9 @@ Each page is a `CTkFrame` subclass constructed via `app._switch_to(PageClass, se
 def _switch_to(self, page_class, *args, **kwargs):
     for w in self._content.winfo_children():
         w.destroy()
+    self.after(60, lambda: self._do_render(page_class, args, kwargs))
+
+def _do_render(self, page_class, args, kwargs):
     page = page_class(self._content, *args, **kwargs)
     page.pack(fill="both", expand=True)
 ```

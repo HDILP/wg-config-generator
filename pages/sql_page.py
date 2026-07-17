@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Optional
 
 import customtkinter as ctk
 
+from app.theme import C, PAD, CR
 from app.workspace import WorkspaceMode
 from models.project import Project
 from services.sql_service import (
@@ -40,12 +41,13 @@ class SQLPage(ctk.CTkFrame):
         seed_listen = s.listen if s and s.listen else "127.0.0.1"
         display_instance = s.instance if s else instance
 
-        ctk.CTkLabel(self, text="SQL Server", font=ctk.CTkFont(size=20, weight="bold"),
-                     ).pack(anchor="w", padx=24, pady=(20, 16))
+        ctk.CTkLabel(self, text="SQL Server", font=ctk.CTkFont(size=18, weight="bold"),
+                     text_color=C["on_surface"],
+                     ).pack(anchor="w", padx=PAD["xl"], pady=(PAD["lg"], PAD["md"]))
 
         # Info card
-        info = ctk.CTkFrame(self, corner_radius=12)
-        info.pack(fill="x", padx=24, pady=(0, 12))
+        info = ctk.CTkFrame(self, corner_radius=CR, fg_color=C["card_bg"], border_width=1, border_color=C["outline_variant"])
+        info.pack(fill="x", padx=PAD["xl"], pady=(0, PAD["md"]))
 
         fields = [
             ("实例", display_instance),
@@ -54,66 +56,84 @@ class SQLPage(ctk.CTkFrame):
         self._port_val = None
         for label, val in fields:
             row = ctk.CTkFrame(info, fg_color="transparent")
-            row.pack(fill="x", padx=16, pady=6)
+            row.pack(fill="x", padx=PAD["lg"], pady=6)
             ctk.CTkLabel(row, text=label, font=ctk.CTkFont(size=13),
+                         text_color=C["on_surface_variant"],
                          width=80).pack(side="left")
             lbl = ctk.CTkLabel(row, text=val, font=ctk.CTkFont(size=13),
-                               text_color="#79747E")
+                               text_color=C["on_surface"])
             lbl.pack(side="left")
             if label == "端口":
                 self._port_val = lbl
 
         # Edit port
         port_row = ctk.CTkFrame(self, fg_color="transparent")
-        port_row.pack(fill="x", padx=24, pady=(8, 4))
+        port_row.pack(fill="x", padx=PAD["xl"], pady=(0, PAD["md"]))
         ctk.CTkLabel(port_row, text="端口", font=ctk.CTkFont(size=13),
+                     text_color=C["on_surface_variant"],
                      width=60).pack(side="left")
-        self._port_entry = ctk.CTkEntry(port_row, font=ctk.CTkFont(size=13), width=100)
+        self._port_entry = ctk.CTkEntry(port_row, font=ctk.CTkFont(size=13), width=100,
+                                         fg_color=C["surface_variant"],
+                                         text_color=C["on_surface"],
+                                         corner_radius=6)
         self._port_entry.insert(0, seed_port)
-        self._port_entry.pack(side="left", padx=(8, 0))
+        self._port_entry.pack(side="left", padx=(PAD["sm"], 0))
         ctk.CTkButton(port_row, text="保存", width=60, height=28,
                        font=ctk.CTkFont(size=11),
+                       fg_color=C["primary"], text_color=C["on_primary"],
+                       corner_radius=8,
                        command=self._save_port,
-                       ).pack(side="left", padx=(8, 0))
+                       ).pack(side="left", padx=(PAD["sm"], 0))
 
         # Listen mode
         listen_row = ctk.CTkFrame(self, fg_color="transparent")
-        listen_row.pack(fill="x", padx=24, pady=(8, 4))
+        listen_row.pack(fill="x", padx=PAD["xl"], pady=(0, PAD["md"]))
         ctk.CTkLabel(listen_row, text="监听", font=ctk.CTkFont(size=13),
+                     text_color=C["on_surface_variant"],
                      width=60).pack(side="left")
 
         self._listen_var = ctk.StringVar(value=seed_listen)
         ctk.CTkRadioButton(listen_row, text="本机 (127.0.0.1)",
                            variable=self._listen_var, value="127.0.0.1",
                            font=ctk.CTkFont(size=12),
-                           ).pack(side="left", padx=(8, 16))
+                           text_color=C["on_surface"],
+                           ).pack(side="left", padx=(PAD["sm"], PAD["lg"]))
         ctk.CTkRadioButton(listen_row, text="全部地址 (0.0.0.0)",
                            variable=self._listen_var, value="0.0.0.0",
                            font=ctk.CTkFont(size=12),
+                           text_color=C["on_surface"],
                            ).pack(side="left")
 
         # Actions
         act = ctk.CTkFrame(self, fg_color="transparent")
-        act.pack(fill="x", padx=24, pady=(16, 8))
+        act.pack(fill="x", padx=PAD["xl"], pady=(PAD["md"], PAD["sm"]))
 
-        ctk.CTkButton(act, text="← 返回仪表盘", width=110,
+        ctk.CTkButton(act, text="← 返回仪表盘", width=100,
                        font=ctk.CTkFont(size=12),
+                       fg_color="transparent", text_color=C["on_surface_variant"],
+                       hover_color=C["surface_variant"], corner_radius=8,
                        command=lambda: self._app.show_dashboard(),
                        ).pack(side="left")
 
         ctk.CTkButton(act, text="保存配置", font=ctk.CTkFont(size=13, weight="bold"),
-                       fg_color="#6750A4", command=self._save_all,
-                       ).pack(side="right", padx=(6, 0))
-        ctk.CTkButton(act, text="保存并重启", font=ctk.CTkFont(size=13),
-                       fg_color="#E65100", command=self._save_and_restart,
-                       ).pack(side="right", padx=(6, 0))
-        ctk.CTkButton(act, text="重启 SQL", font=ctk.CTkFont(size=13),
-                       fg_color="#FF9800", command=self._restart_sql,
-                       ).pack(side="right", padx=(6, 0))
+                       fg_color=C["primary"], text_color=C["on_primary"],
+                       hover_color=C["primary_hover"], corner_radius=8,
+                       command=self._save_all,
+                       ).pack(side="right", padx=(PAD["sm"], 0))
+        ctk.CTkButton(act, text="保存并重启", font=ctk.CTkFont(size=12),
+                       fg_color=C["warning"], text_color="white",
+                       corner_radius=8,
+                       command=self._save_and_restart,
+                       ).pack(side="right", padx=(PAD["sm"], 0))
+        ctk.CTkButton(act, text="重启 SQL", font=ctk.CTkFont(size=12),
+                       fg_color="transparent", text_color=C["on_surface_variant"],
+                       hover_color=C["surface_variant"], corner_radius=8,
+                       command=self._restart_sql,
+                       ).pack(side="right", padx=(PAD["sm"], 0))
 
         # Status
         self._status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11),
-                                     text_color="#79747E")
+                                     text_color=C["outline"])
         self._status.pack(pady=(8, 4))
 
         # Refresh live data in background — no freeze

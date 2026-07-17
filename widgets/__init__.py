@@ -113,9 +113,13 @@ class SecurityScoreWidget(ctk.CTkFrame):
 
 
 class CardFrame(ctk.CTkFrame):
-    """A rounded card container."""
+    """A rounded card container with subtle border."""
 
     def __init__(self, master, title: str = "", **kwargs):
+        from app.theme import C
+        kwargs.setdefault("fg_color", C["card_bg"])
+        kwargs.setdefault("border_width", 1)
+        kwargs.setdefault("border_color", "#EDE4F0")
         super().__init__(master, corner_radius=12, **kwargs)
         if title:
             ctk.CTkLabel(

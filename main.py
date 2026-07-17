@@ -44,9 +44,8 @@ def main() -> None:
     workspace = _resolve_workspace(settings)
 
     # Apply theme from settings
-    from app.theme import apply_theme, ThemeMode
-    theme_map = {"light": ThemeMode.LIGHT, "dark": ThemeMode.DARK, "system": ThemeMode.SYSTEM}
-    apply_theme(theme_map.get(settings.theme, ThemeMode.LIGHT))
+    from app.theme import apply_theme
+    apply_theme()
 
     # Ensure Projects dir exists
     from core.project_manager import ProjectManager
@@ -55,14 +54,6 @@ def main() -> None:
     # Launch app
     from app import GPServerManager
     app = GPServerManager(workspace=workspace, settings=settings)
-    # Speed up scroll wheel: walk parents until Canvas, then scroll
-    def _fast_wheel(e):
-        w = e.widget
-        while w is not None and not hasattr(w, "yview_scroll"):
-            w = w.master
-        if w is not None:
-            w.yview_scroll(-int(e.delta / 24), "units")
-    app.bind_all("<MouseWheel>", _fast_wheel)
     app.mainloop()
 
 

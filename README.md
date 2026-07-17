@@ -12,12 +12,11 @@
 ### 服务器项目管理
 - **Project = 一台服务器** — 所有配置集中在一个目录，不散落
 - **Workspace 工作模式** — Server Mode（服务器本机操作）和 Client Mode（运维电脑操作）
-- **Client Dashboard** — 项目统计、最近项目列表
+| **Client Dashboard** — 项目统计、最近项目列表、运维信息 inline 编辑
 
 ### WireGuard
-- **Client Mode** — 配置生成、客户端 CRUD、VPN IP 自动分配
+- **Client Mode** — 配置生成、客户端 CRUD、VPN IP 自动分配、部署包生成
 - **Server Mode** — 仅显示安装状态 + 打开官方 WireGuard 客户端
-- **一键部署包** — 生成 Deploy/Server/ 和 Deploy/Client/ ZIP，按目标系统携带对应安装程序和配置文件
 - **二维码导出** — client.conf 一键转二维码
 - **Win7 支持** — 部署包使用 TunSafe，附带 TunSafe-TAP 和 TunSafe 主程序，无需额外安装系统补丁
 
@@ -49,9 +48,10 @@
 - 自定义端口
 - **不需要用户输入 netsh 命令**
 
-### 运维信息
+|### 运维信息
 - 远程软件（帮我吧/向日葵/ToDesk/RustDesk）
 - 负责人、密码、备注、区域、SQL 版本、管家婆版本
+- **已合并到 Client Dashboard，无需单独页面**
 
 ### 工具箱
 - Ping、Traceroute、公网 IP 检测
@@ -165,17 +165,17 @@ wg-config-generator/
 ├── backup/                   # 备份引擎
 ├── core/                     # 业务逻辑
 ├── models/                   # 数据模型
-├── pages/                    # UI 页面（10 个）
+├── pages/                    # UI 页面（12 个）
 ├── services/                 # 后端服务（5 个）
-├── utils/                    # 工具函数
-├── widgets/                  # 可复用组件
+├── utils/                    # 工具函数 + 图标引擎
+├── widgets/                  # 可复用组件（toast/empty state/card）
 ├── requirements.txt
-├── CLAUDE.md
+├── AGENTS.md
 ├── README.md
 └── .github/workflows/build.yml
 ```
 
-37 个 Python 源文件，全类型注解，无巨大 main.py。
+44 个 Python 源文件，全类型注解，无巨大 main.py。
 
 ---
 
