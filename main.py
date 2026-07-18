@@ -6,8 +6,18 @@ Entry point. Shows workspace mode selector at startup, then launches the app.
 from __future__ import annotations
 
 import logging
+import subprocess
 import sys
 from pathlib import Path
+
+# Nuitka windowed mode: suppress console windows for every subprocess spawn.
+# Without CREATE_NO_WINDOW, each subprocess.run/Popen pops a cmd.exe window.
+if sys.platform == "win32":
+    _Popen_init = subprocess.Popen.__init__
+    def _no_console_init(self, *args, **kwargs):
+        kwargs.setdefault("creationflags", subprocess.CREATE_NO_WINDOW)
+        return _Popen_init(self, *args, **kwargs)
+    subprocess.Popen.__init__ = _no_console_init
 
 logging.basicConfig(
     level=logging.INFO,
