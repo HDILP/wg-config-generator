@@ -29,6 +29,8 @@ jobs:
       - name: Copy installers into dist
         shell: cmd
         run: |
+          if not exist "dist\main.dist\assets\icons" mkdir "dist\main.dist\assets\icons"
+          xcopy /Y /I /E "assets\icons\*" "dist\main.dist\assets\icons\"
           if not exist "dist\main.dist\assets\installers" mkdir "dist\main.dist\assets\installers"
           xcopy /Y /I /E "assets\installers\*" "dist\main.dist\assets\installers\"
       - name: Install Inno Setup
