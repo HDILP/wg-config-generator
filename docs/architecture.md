@@ -60,8 +60,7 @@ Each page is a `CTkFrame` subclass constructed via `app._switch_to(PageClass, se
 | SQL Server | `sql_page.py` | SERVER | Port / Listen mode / Restart |
 | Firewall | `firewall_page.py` | SERVER | Service toggles + Custom port |
 | Backup Center | `backup_page.py` | SERVER | Quick Mode / History / Restore / Browser |
-| System Info | `system_info_page.py` | SERVER | 系统信息 / 服务管理 |
-| Ops Info | `ops_page.py` | CLIENT | Editable ops form（已合并到 Client Dashboard）|
+|| System Info | `system_info_page.py` | SERVER | 系统信息 / 服务管理 |
 || Settings | `settings_page.py` | BOTH | Workspace mode / About |
 
 ### services/ — Backend Services

@@ -1,7 +1,9 @@
-"""SQL Server service — query and configure MSSQL via registry / sc / PowerShell / cmd.
+"""SQL Server service — query and configure MSSQL via registry / sc / sqlcmd.
 
-All Windows-only. Tries PowerShell first; falls back to reg.exe + sc.exe (cmd)
-for Win7 compatibility. Returns dummy data on non-Windows.
+All Windows-only. Registry path resolved via Instance Names under WOW6432Node
+(for SQL 2008-2022 compatibility), then reads/writes IPAll\\TcpPort & ListenOnAllIPs.
+Restart: sqlcmd SHUTDOWN + sc start (sc stop rejected by SQL Server, error 1051).
+Falls back to 64-bit legacy path for installations without WOW6432Node mapping.
 """
 from __future__ import annotations
 
@@ -110,8 +112,6 @@ def _wait_for_service_state(name: str, target: str, timeout: int = 30) -> bool:
         state = _service_state(name)
         if state == target:
             return True
-        if state == "Unknown":
-            return False
         time.sleep(1)
     return False
 
@@ -167,20 +167,23 @@ def _agent_service(instance: str) -> str:
 
 
 def _reg_path(instance: str) -> str:
-    """Resolve TCP/IPAll registry path via Instance Names, fallback to legacy."""
+    """Resolve TCP registry path via Instance Names in WOW6432Node (where SQL 2008 R2 stores it).
+
+    Falls back to 64-bit legacy path for newer SQL versions that use it.
+    """
     raw = _cmd([
         "reg", "query",
-        r"HKLM\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL",
+        r"HKLM\SOFTWARE\WOW6432Node\Microsoft\Microsoft SQL Server\Instance Names\SQL",
         "/v", instance,
     ])
     for line in raw.splitlines():
         if instance in line and "REG_SZ" in line:
             subkey = line.rsplit(None, 1)[-1].strip()
             return (
-                f"HKLM\\SOFTWARE\\Microsoft\\Microsoft SQL Server\\"
+                f"HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Microsoft SQL Server\\"
                 f"{subkey}\\MSSQLServer\\SuperSocketNetLib\\Tcp"
             )
-    # Fallback: legacy path (SQL 2008-) for default, guess for named
+    # Fallback: legacy 64-bit path for default instance
     if instance.upper() == "MSSQLSERVER":
         return (
             r"HKLM\SOFTWARE\Microsoft\MSSQLServer"
@@ -224,8 +227,8 @@ def get_sql_info(instance: str = "MSSQLSERVER") -> SqlInstanceInfo:
     # Registry reads — reg.exe only (PS path had "HKLM:HKLM\..." bug)
     rp = _reg_path(instance)
 
-    # Port from registry
-    port_raw = _reg_read_string(rp, "TcpPort")
+    # Port from IPAll\TcpPort (the real location SQL Server reads)
+    port_raw = _reg_read_string(rp + "\\IPAll", "TcpPort")
     if port_raw and not port_raw.startswith("<error:"):
         try:
             info.port = int(port_raw)
@@ -233,11 +236,11 @@ def get_sql_info(instance: str = "MSSQLSERVER") -> SqlInstanceInfo:
             pass
     # Tcp subkey exists with TcpPort → TCP enabled
     info.tcp_enabled = True
-    # Listen mode (ListenAll may not exist, defaults to 127.0.0.1)
-    listen_raw = _reg_read_string(rp, "ListenAll")
-    info.listen_mode = SqlListenMode.ALL if listen_raw.strip() == "1" else SqlListenMode.LOCAL
+    # Listen mode via ListenOnAllIPs REG_DWORD (0=local, 1=all)
+    listen_raw = _reg_read_string(rp, "ListenOnAllIPs")
+    info.listen_mode = SqlListenMode.ALL if "1" in listen_raw else SqlListenMode.LOCAL
 
-    # Optional sqlcmd verification — best-effort, never overrides registry
+    # Optional sqlcmd verification
     addr = _server(instance)
     try:
         r = subprocess.run(
@@ -267,53 +270,52 @@ def get_sql_info(instance: str = "MSSQLSERVER") -> SqlInstanceInfo:
 def set_sql_port(port: int, instance: str = "MSSQLSERVER") -> str:
     if sys.platform != "win32":
         return "n/a (non-Windows)"
-    result = _reg_set(_reg_path(instance), "TcpPort", str(port))
-    return "OK" if "error" not in result.lower() else result
+    rp = _reg_path(instance)
+    _reg_set(rp + "\\IPAll", "TcpPort", str(port))
+    listen_raw = _reg_read_string(rp, "ListenOnAllIPs")
+    if "1" not in listen_raw:
+        for n in range(1, 21):
+            addr = _reg_read_string(rp + f"\\IP{n}", "IpAddress")
+            if addr == "127.0.0.1":
+                _reg_set(rp + f"\\IP{n}", "TcpPort", str(port))
+                _reg_set(rp + f"\\IP{n}", "Enabled", "1", typ="REG_DWORD")
+                break
+    return "OK"
 
 
 def set_sql_listen_mode(mode: SqlListenMode, instance: str = "MSSQLSERVER") -> str:
     if sys.platform != "win32":
         return "n/a (non-Windows)"
-    r = _reg_set(_reg_path(instance), "ListenAll",
-                  "1" if mode == SqlListenMode.ALL else "0")
+    rp = _reg_path(instance)
+    r = _reg_set(rp, "ListenOnAllIPs",
+                  "1" if mode == SqlListenMode.ALL else "0",
+                  typ="REG_DWORD")
     return "OK" if "error" not in r.lower() else r
 
 
 def restart_sql(instance: str = "MSSQLSERVER") -> str:
-    """Restart SQL Server via T-SQL SHUTDOWN (reliable, bypasses SCM)."""
+    """Restart SQL Server: sqlcmd SHUTDOWN + sc start.
+
+    SQL Server rejects external SCM stop signals (error 1051).
+    Only SHUTDOWN from within works; sc start has no such restriction.
+    """
     if sys.platform != "win32":
         return "n/a (non-Windows)"
     svc_name = _instance_service(instance)
     try:
+        # ── Stop via sqlcmd SHUTDOWN (SQL Server rejects sc stop) ──
         subprocess.run(
             ["sqlcmd", "-S", _server(instance), "-E", "-Q", "SHUTDOWN WITH NOWAIT"],
             capture_output=True, timeout=60,
         )
-    except Exception:
-        pass
-    for _ in range(60):
-        state = _service_state(svc_name)
-        if state == "Running":
-            return "OK"
-        if state != "Unknown":
-            time.sleep(1)
-    return "✗ SHUTDOWN 后服务未自动重启"
+        # sqlcmd exits 118 after server disconnects — _wait is the real check
+        if not _wait_for_service_state(svc_name, "Stopped", timeout=60):
+            return "error: SQL Server did not stop within 60 seconds"
 
-
-def restart_sql(instance: str = "MSSQLSERVER") -> str:
-    """Restart the database engine through SCM and verify its final state."""
-    if sys.platform != "win32":
-        return "n/a (non-Windows)"
-    svc_name = _instance_service(instance)
-    try:
-        state = _service_state(svc_name)
-        if state == "Unknown":
-            return f"error: service '{svc_name}' was not found"
-        if state == "Running":
-            subprocess.run(["sc", "stop", svc_name], capture_output=True, timeout=30)
-            if not _wait_for_service_state(svc_name, "Stopped", timeout=60):
-                return "error: SQL Server did not stop within 60 seconds"
-        subprocess.run(["sc", "start", svc_name], capture_output=True, timeout=30)
+        # ── Start via sc (starting has no restriction) ──
+        r = subprocess.run(["sc", "start", svc_name], capture_output=True, timeout=30)
+        if r.returncode != 0:
+            return f"error: sc start failed (code {r.returncode})"
         if _wait_for_service_state(svc_name, "Running", timeout=90):
             return "OK"
         return "error: SQL Server did not start within 90 seconds"

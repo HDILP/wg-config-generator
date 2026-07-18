@@ -39,7 +39,6 @@
 | | `sql_page.py` | SQL Server 配置 |
 | | `firewall_page.py` | 防火墙管理 |
 | | `system_info_page.py` | 系统信息 + 服务管理（已合并，无 radio tab 切换） |
-| | `ops_page.py` | 运维信息编辑（已合并进 dashboard，保留向后兼容） |
 | | `settings_page.py` | 全局设置（工作模式切换，浅色主题标记） |
 | **services/** | `backup_service.py` | 立即备份/历史/清理/恢复/文件浏览 |
 | | `sql_service.py` | SQL Server 注册表/服务（支持 SQL 2008~2022） |

@@ -165,7 +165,7 @@ wg-config-generator/
 ├── backup/                   # 备份引擎
 ├── core/                     # 业务逻辑
 ├── models/                   # 数据模型
-├── pages/                    # UI 页面（12 个）
+├── pages/                    # UI 页面（11 个）
 ├── services/                 # 后端服务（5 个）
 ├── utils/                    # 工具函数 + 图标引擎
 ├── widgets/                  # 可复用组件（toast/empty state/card）
